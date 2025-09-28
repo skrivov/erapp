@@ -3,25 +3,37 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npm run validate:taxi",
+    "policy:lint": "node ./scripts/policyLint.mjs",
+    "policy:eval": "node ./scripts/policyEval.mjs",
+    "validate:taxi": "tsx scripts/validateTaxiReceipts.ts"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
+    "next": "15.5.4",
+    "openai": "^4.59.0",
+    "pdfjs-dist": "^4.6.82",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.4"
+    "tesseract.js": "^5.1.0",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@eslint/eslintrc": "^3",
+    "@napi-rs/canvas": "^0.1.80",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4",
+    "tsx": "^4.7.2",
+    "typescript": "^5"
   }
 }

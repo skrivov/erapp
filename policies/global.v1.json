@@ -1,0 +1,28 @@
+[
+  {
+    "id": "global-manager-threshold-v1-us",
+    "name": "Global manager skip < $50 (pre-change, US)",
+    "priority": 10,
+    "effective_from": "1900-01-01T00:00:00Z",
+    "effective_to": "2024-09-30T23:59:59Z",
+    "selectors": { "category": "ride_hail", "region": "US" },
+    "effect": {
+      "skip_steps_below": [
+        { "step": "manager", "amount": 50, "currency": "USD" }
+      ]
+    }
+  },
+  {
+    "id": "global-manager-threshold-v1-eu",
+    "name": "Global manager skip < €50 (pre-change, EU)",
+    "priority": 10,
+    "effective_from": "1900-01-01T00:00:00Z",
+    "effective_to": "2024-09-30T23:59:59Z",
+    "selectors": { "category": "ride_hail", "region": "EU" },
+    "effect": {
+      "skip_steps_below": [
+        { "step": "manager", "amount": 50, "currency": "EUR" }
+      ]
+    }
+  }
+]

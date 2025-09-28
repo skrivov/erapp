@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Expense Reimbursement Conversational Agent (ERCA)
+
+Demo Next.js application combining LLM-assisted extraction with a deterministic policy evaluator for expense approval routing. Implemented per `SPEC.md` using file-backed policies, Tailwind UI, and Zod-validated contracts.
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 to start the upload → review → decision flow.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create a `.env.local` with your provider credentials:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+OPENAI_API_KEY=sk-...
+# optional overrides
+# OPENAI_EXTRACTION_MODEL=gpt-4o-mini
+# OPENAI_POLICY_EVAL_MODEL=gpt-4o-mini
+# ERCA_TESSDATA_PATH=/absolute/path/to/tessdata
+```
 
-## Learn More
+## Key Commands
 
-To learn more about Next.js, take a look at the following resources:
+- `npm run dev` — Start the Next.js dev server.
+- `npm run build` / `npm start` — Production build & serve.
+- `npm test` — Alias for `npm run validate:taxi`, which runs the OCR + LLM validation pipeline against `scripts/datasets/taxi_*` (requires `OPENAI_API_KEY`; set `ERCA_TESSDATA_PATH` to a folder with `eng.traineddata` to keep OCR offline).
+- `npm run validate:taxi` — Standalone receipt validation script; accepts `--only` and `--subset` filters for targeted runs.
+- `npm run policy:lint` — Static lint pass over `/policies` JSON files.
+- `npm run policy:eval` — LLM-assisted QA; generates `data/policy_report.md`.
+- `npm run lint` — ESLint (Next.js defaults).
+- `python scripts/datasets/download_receipts.py` — Pull sample DocILE/ICDAR receipts (requires `datasets` & `requests`).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/                # App Router pages & API routes (upload/review/decision/admin, /api/*)
+components/         # Shared UI components
+lib/                # Deterministic logic (evaluate, policy loader, clarifications, types)
+schemas/            # Zod schemas for extraction/policy/decision payloads
+policies/           # File-backed policy JSON (global + regional overlays)
+data/               # Local audit + generated reports
+scripts/            # Node scripts (policy linting, policy eval, taxi validation, datasets)
+```
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `SPEC.md` for architecture details, guardrails, and acceptance criteria.

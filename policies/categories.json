@@ -1,0 +1,6 @@
+[
+  { "id": "ride_hail", "label": "Ride Hail" },
+  { "id": "travel", "label": "Travel" },
+  { "id": "meals", "label": "Meals" },
+  { "id": "software", "label": "Software" }
+]

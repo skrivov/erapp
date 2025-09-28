@@ -1,0 +1,16 @@
+[
+  {
+    "id": "apac-category-routing",
+    "name": "APAC category-based routing",
+    "priority": 20,
+    "effective_from": "1900-01-01T00:00:00Z",
+    "selectors": { "region": "APAC" },
+    "effect": {
+      "category_routes": {
+        "meals": ["manager"],
+        "travel": ["finance"],
+        "software": ["it"]
+      }
+    }
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "global-manager-threshold-v2-us",
+    "name": "Global manager skip < $75 (post-change, US)",
+    "priority": 10,
+    "effective_from": "2024-10-01T00:00:00Z",
+    "selectors": { "category": "ride_hail", "region": "US" },
+    "effect": {
+      "skip_steps_below": [
+        { "step": "manager", "amount": 75, "currency": "USD" }
+      ]
+    }
+  },
+  {
+    "id": "global-manager-threshold-v2-eu",
+    "name": "Global manager skip < €75 (post-change, EU)",
+    "priority": 10,
+    "effective_from": "2024-10-01T00:00:00Z",
+    "selectors": { "category": "ride_hail", "region": "EU" },
+    "effect": {
+      "skip_steps_below": [
+        { "step": "manager", "amount": 75, "currency": "EUR" }
+      ]
+    }
+  }
+]

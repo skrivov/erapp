@@ -1,0 +1,15 @@
+[
+  {
+    "id": "us-autoapprove-under-100",
+    "name": "US auto-approve (skip manager) < $100",
+    "priority": 20,
+    "effective_from": "1900-01-01T00:00:00Z",
+    "selectors": { "region": "US", "category": "ride_hail" },
+    "effect": {
+      "skip_steps_below": [
+        { "step": "manager", "amount": 100, "currency": "USD" }
+      ]
+    },
+    "comment": "More permissive than global; manager skipped under $100."
+  }
+]

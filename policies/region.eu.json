@@ -1,0 +1,27 @@
+[
+  {
+    "id": "eu-compliance-over-50",
+    "name": "EU compliance > €50",
+    "priority": 20,
+    "effective_from": "1900-01-01T00:00:00Z",
+    "selectors": { "region": "EU" },
+    "effect": {
+      "require_steps_if": [
+        {
+          "when": { "amount_gt": { "amount": 50, "currency": "EUR" } },
+          "steps": ["compliance"]
+        }
+      ]
+    }
+  },
+  {
+    "id": "eu-travel-needs-hr",
+    "name": "EU travel requires HR",
+    "priority": 20,
+    "effective_from": "1900-01-01T00:00:00Z",
+    "selectors": { "region": "EU", "category": "travel" },
+    "effect": {
+      "always_require_steps": ["hr"]
+    }
+  }
+]
