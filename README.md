@@ -3,7 +3,7 @@
 
 ## Analysis of Requirements
 
-On one hand, there is a requirement to build a conversational agent for the analysis of receipts. On the other hand, there is an invitation to design a reliable and flexible system for submitting expense reimbursements.
+On one hand, there is a requirement to build a conversational agent for the analysis of taxi receipts from uber/lyft. On the other hand, there is an invitation to design a reliable and flexible system for submitting expense reimbursements.
 
 **The core and most important requirement:** Make sure that submitted data trigger the appropriate rule.
 
