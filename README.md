@@ -5,13 +5,15 @@
 
 On one hand, there is a requirement to build a conversational agent for the analysis of taxi receipts from uber/lyft. On the other hand, there is an invitation to design a reliable and flexible system for submitting expense reimbursements.
 
-**The core and most important requirement:** Make sure that submitted data trigger the appropriate rule.
+**The core and most important requirement:** Make sure that submitted data trigger the appropriate rule(s).
 
 **Reasonable requirement:** Get the country of the expense from the receipt.
 
 **Unreasonable requirements:** Derive department and purpose of visit from an Uber/Lyft receipt. This is impossible.
 
-**Dangerous requirement:** The invitation is to design an agent, which implies that an LLM will drive the conversation and apply rules. LLMs are prone to nondeterminism. Relying on an LLM for making decisions about finances is dangerous at this point. The reimbursement rules are deterministic and have to be applied deterministically.
+**Dangerous requirement:** The invitation is to design an agent, which suggests that an LLM would drive the conversation and enforce the rules. However, LLMs are inherently nondeterministic. Relying on them to make financial decisions is risky at this stage. Reimbursement rules are deterministic and must be applied deterministically.
+
+In addition, submitting financial data requires careful review and reevaluation of the entered information. Even when using a guided wizard, users often need to move back and forth between steps. Agentic chat technology is therefore not well-suited for this use case.
 
 **Implicit and very important requirements:**
 - US Office, EU Office, and Asia-Pacific Office use different currencies.
@@ -19,6 +21,16 @@ On one hand, there is a requirement to build a conversational agent for the anal
 - There are examples of departmental expenses that have nothing to do with Uber/Lyft receipts, such as detailed categorization and approval of IT expenses.
 
 **The key goal:** Develop a software solution that significantly reduces human error in the expense reimbursement process. The system should be flexible and open to the addition of new rules. No hardcoded rules. The system should reasonably leverage LLM capabilities. It seems that Uber receipt submission is just a backdrop.
+
+## Assumptions for the demo app
+
+US Office uses USD.
+EU Office uses Euro.
+Asia-Pacific Office uses Indian Rupees.
+Every department requires submissions in their specific currencies.
+
+These assumptions are deduced from the fact that each department defines rules using regional currency.
+
 
 ## Architectural Choices
 
@@ -38,16 +50,6 @@ Some fields like department cannot be derived from a taxi receipt. They will hav
 
 We will make the form editable, which allows re-itemizing the expense as necessary or converting figures to different currencies manually.
 
-**Out of scope:** Automatic currency conversion.
-
-## Assumptions
-
-US Office uses USD.
-EU Office uses Euro.
-Asia-Pacific Office uses Indian Rupees.
-Every department requires submissions in their specific currencies.
-
-These assumptions are deduced from the fact that each department defines rules using regional currency.
 
 ## Edge Cases
 
@@ -56,6 +58,11 @@ These assumptions are deduced from the fact that each department defines rules u
 - An employee receives a receipt itemized in a vendor-specific format, but the department requires a department-specific breakdown.
 
 To handle these cases, we support an editable reimbursement form. The UI also prevents submitting a reimbursement request in a currency different from the required currency of the regional office.
+
+**Out of scope for this demo:** 
+- Automatic currency conversion would be a better solution than preventing user to submit reimbursement request in differnt currency
+- Examples of rules that trigger department specific itemization
+
 
 ## Key Technical Elements (see SPEC.md)
 
