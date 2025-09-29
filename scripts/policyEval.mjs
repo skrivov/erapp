@@ -213,7 +213,6 @@ async function main() {
   const policies = await loadPolicies();
   const conflicts = collectOverlaps(policies);
   const warnings = conflicts.length ? ["Resolve overlapping rule ranges"] : [];
-  const gaps = [];
   const tests = suggestedTests();
   const results = [];
 

@@ -29,7 +29,7 @@ export default function RootLayout({
         <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-6 py-8">
           <header className="flex items-center justify-between border-b border-slate-200 bg-white px-0 pb-3">
             <Link href="/home/upload" className="text-lg font-semibold text-slate-800">
-              ERCA Demo
+              Expense Reimbursement App Demo
             </Link>
             <nav className="flex items-center gap-3 text-sm text-slate-600">
               <Link href="/home/upload" className="px-2 py-1 transition hover:text-emerald-600">

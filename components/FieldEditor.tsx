@@ -7,10 +7,10 @@ type FieldEditorProps = {
   label: string;
   value: string | number | undefined;
   onChange: (value: string) => void;
-  confidence?: number;
+  confidenceVariant?: "green" | "yellow" | "red";
   options?: string[];
   helper?: string;
-  type?: "text" | "number";
+  type?: "text" | "number" | "date";
   invalid?: boolean;
 };
 
@@ -18,7 +18,7 @@ export function FieldEditor({
   label,
   value,
   onChange,
-  confidence,
+  confidenceVariant,
   options,
   helper,
   type = "text",
@@ -30,11 +30,9 @@ export function FieldEditor({
 
   return (
     <div className="flex flex-col gap-2 border border-slate-300 bg-white p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-slate-700">{label}</span>
-        {typeof confidence === "number" ? (
-          <ConfidenceBadge score={confidence} />
-        ) : null}
+        {confidenceVariant ? <ConfidenceBadge variant={confidenceVariant} srLabel={`${label} indicator`} /> : null}
       </div>
       {options ? (
         <select

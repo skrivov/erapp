@@ -232,7 +232,7 @@ export default function UploadPage() {
         <p className="text-center text-sm text-slate-600">{dropInstructions}</p>
       </section>
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <div className="grid gap-4 md:grid-cols-2 md:items-start md:[grid-auto-rows:1fr]">
+        <div className="grid gap-4 md:grid-cols-2 md:items-stretch md:[grid-auto-rows:minmax(0,1fr)]">
           <ArtifactPreview
             url={artifactUrl}
             filename={fileName ?? undefined}
@@ -240,12 +240,18 @@ export default function UploadPage() {
             initialScale={1}
             maxHeightClass="h-[28rem]"
             disableControls
+            className="h-full min-h-[28rem]"
           />
           <div className="flex h-full flex-col">
             {hasText ? (
-              <ReceiptPreview text={text} filename={fileName ?? undefined} maxHeightClass="h-[28rem]" />
+              <ReceiptPreview
+                text={text}
+                filename={fileName ?? undefined}
+                maxHeightClass="h-[28rem]"
+                className="min-h-[28rem]"
+              />
             ) : (
-              <div className="border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+              <div className="flex h-full min-h-[28rem] flex-col justify-center border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
                 OCR results will appear here once your receipt finishes processing.
               </div>
             )}

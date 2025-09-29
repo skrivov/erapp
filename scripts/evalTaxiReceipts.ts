@@ -11,6 +11,7 @@ import { evaluate } from "../lib/evaluate.ts";
 import { getActiveRules } from "../lib/policyLoader.ts";
 import { regionFromCountry } from "../lib/region.ts";
 import { buildExplanation } from "../lib/explain.ts";
+import type { Region } from "../lib/types.ts";
 
 const DATASET_ROOT = path.join(process.cwd(), "scripts", "datasets");
 const PDF_ROOT = path.join(DATASET_ROOT, "taxi_pdfs");
@@ -18,10 +19,22 @@ const PDF_ROOT = path.join(DATASET_ROOT, "taxi_pdfs");
 const DEFAULT_DEPARTMENT = "engineering";
 const DEFAULT_CATEGORY = "ride_hail";
 
+type ReceiptRunResult = {
+  file: string;
+  durationMs: number;
+  issues: string[];
+  warnings: string[];
+  amountDelta: number;
+  currency: string;
+  managerStep: "included" | "skipped";
+  complianceStep: boolean;
+  questions: number;
+};
+
 loadEnv({ path: path.join(process.cwd(), ".env.local"), override: false });
 loadEnv({ path: path.join(process.cwd(), ".env"), override: false });
 
-const CURRENCY_SYMBOL_TO_ISO = {
+const CURRENCY_SYMBOL_TO_ISO: Record<string, string> = {
   "€": "EUR",
   "₹": "INR",
   "CN¥": "CNY",
@@ -92,7 +105,7 @@ async function main() {
     return;
   }
 
-  const results = [];
+  const results: ReceiptRunResult[] = [];
   for (const record of filteredTruth) {
     const receiptStart = performance.now();
     const issues = [];
@@ -108,9 +121,11 @@ async function main() {
       const extraction = await runExtractionLLM(ocrText);
       const questions = neededQuestions(extraction);
 
-      const symbol = record.currency?.trim() ?? "";
+      const symbol = (record.currency ?? "").trim();
       const expectedCurrency =
-        CURRENCY_SYMBOL_TO_ISO[symbol] ?? symbol.toUpperCase() ?? extraction.currency;
+        (symbol && symbol in CURRENCY_SYMBOL_TO_ISO
+          ? CURRENCY_SYMBOL_TO_ISO[symbol]
+          : symbol.toUpperCase()) || extraction.currency;
 
       const amountDelta = Math.abs(extraction.amount - record.total);
 
@@ -124,7 +139,22 @@ async function main() {
 
       const countryCode = guessCountryCode(record.location_end);
       const countryAnswer = normalizeCountryName(countryCode) ?? countryCode ?? record.location_end;
-      const resolvedRegion = resolveRegion(record.file, countryAnswer);
+      const expectedRegion = resolveRegion(record.file, countryAnswer);
+
+      const extractionRegion: Region | null = extraction.region ?? null;
+      if (!extractionRegion && !questions.some((question) => question.id === "region")) {
+        issues.push("Region question missing despite absent Region output");
+      }
+
+      let resolvedRegion: Region = extractionRegion ?? expectedRegion;
+      if (!resolvedRegion) {
+        resolvedRegion = "US";
+        warnings.push("Falling back to US region default");
+      }
+
+      if (extractionRegion && expectedRegion && extractionRegion !== expectedRegion) {
+        issues.push(`Region mismatch (expected ${expectedRegion}, got ${extractionRegion})`);
+      }
 
       const expense = {
         dateISO: extraction.dateISO,
@@ -161,8 +191,8 @@ async function main() {
       results.push({
         file: record.file,
         durationMs: performance.now() - receiptStart,
-        issues,
-        warnings,
+        issues: [...issues],
+        warnings: [...warnings],
         amountDelta,
         currency: extraction.currency,
         managerStep: decision.steps.includes("manager") ? "included" : "skipped",
@@ -175,8 +205,8 @@ async function main() {
       results.push({
         file: record.file,
         durationMs: performance.now() - receiptStart,
-        issues,
-        warnings,
+        issues: [...issues],
+        warnings: [...warnings],
         amountDelta: Number.NaN,
         currency: "?",
         managerStep: "included",
@@ -190,7 +220,7 @@ async function main() {
   report(results, totalDuration);
 }
 
-function parseOnlyArg(args) {
+function parseOnlyArg(args: string[]): Set<string> | null {
   const onlyArg = args.find((arg) => arg.startsWith("--only="));
   if (!onlyArg) {
     return null;
@@ -203,7 +233,7 @@ function parseOnlyArg(args) {
   return new Set(files);
 }
 
-function parseSubsetLabel(args) {
+function parseSubsetLabel(args: string[]): string | null {
   const subsetArg = args.find((arg) => arg.startsWith("--subset="));
   if (!subsetArg) {
     return null;
@@ -211,15 +241,15 @@ function parseSubsetLabel(args) {
   return subsetArg.replace("--subset=", "");
 }
 
-function resolveRegion(fileName, normalizedCountry) {
-  const direct = REGION_BY_FILE[fileName];
+function resolveRegion(fileName: string, normalizedCountry: string | null): Region {
+  const direct = REGION_BY_FILE[fileName] as Region | undefined;
   if (direct) {
     return direct;
   }
-  return regionFromCountry(normalizedCountry);
+  return regionFromCountry(normalizedCountry ?? undefined);
 }
 
-function report(results, durationMs) {
+function report(results: ReceiptRunResult[], durationMs: number) {
   const failures = results.filter((result) => result.issues.length > 0);
   const passes = results.length - failures.length;
 

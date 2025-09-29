@@ -10,11 +10,7 @@ type ClarifierChatProps = {
 
 export function ClarifierChat({ questions, answers, onAnswer }: ClarifierChatProps) {
   if (!questions.length) {
-    return (
-      <div className="border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-        All set — no clarifications needed.
-      </div>
-    );
+    return null;
   }
 
   return (

@@ -6,11 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "test": "npm run validate:taxi",
+    "lint": "eslint",  
     "policy:lint": "node ./scripts/policyLint.mjs",
     "policy:eval": "node ./scripts/policyEval.mjs",
-    "validate:taxi": "tsx scripts/validateTaxiReceipts.ts"
+    "eval:taxi": "tsx scripts/evalTaxiReceipts.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

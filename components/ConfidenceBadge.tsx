@@ -1,16 +1,20 @@
 type ConfidenceBadgeProps = {
-  score: number;
-  label?: string;
+  variant: "green" | "yellow" | "red";
+  srLabel?: string;
 };
 
-export function ConfidenceBadge({ score, label }: ConfidenceBadgeProps) {
-  const tier = score >= 0.9 ? "bg-emerald-600" : score >= 0.75 ? "bg-amber-500" : "bg-rose-600";
-  const display = `${Math.round(score * 100)}%`;
+const VARIANT_CLASS: Record<ConfidenceBadgeProps["variant"], string> = {
+  green: "bg-emerald-500",
+  yellow: "bg-amber-400",
+  red: "bg-rose-500",
+};
 
+export function ConfidenceBadge({ variant, srLabel }: ConfidenceBadgeProps) {
   return (
-    <span className={`inline-flex items-center gap-1 border px-2 py-1 text-xs font-medium text-white ${tier}`}>
-      {label ? <span>{label}</span> : null}
-      <span>{display}</span>
-    </span>
+    <span
+      role="img"
+      aria-label={srLabel ?? `${variant} indicator`}
+      className={`inline-block h-2.5 w-2.5 rounded-full ${VARIANT_CLASS[variant]}`}
+    />
   );
 }

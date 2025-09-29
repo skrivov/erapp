@@ -3,7 +3,6 @@ import { ExtractionSchema } from "../../../schemas/extraction.schema";
 import { evaluate } from "../../../lib/evaluate";
 import { getActiveRules } from "../../../lib/policyLoader";
 import { buildExplanation } from "../../../lib/explain";
-import { regionFromCountry } from "../../../lib/region";
 import { appendAudit } from "../../../lib/audit";
 import type { Decision, Expense } from "../../../lib/types";
 
@@ -21,13 +20,12 @@ export async function POST(request: Request) {
   const extraction = parsedExtraction.data;
 
   const category = answers.category ?? extraction.category ?? "ride_hail";
-  const country = answers.country ?? extraction.pickupCountry;
+  const resolvedRegion = (overrides.region ?? answers.region ?? extraction.region ?? "US") as Expense["region"];
   const department = answers.department ?? extraction.inferredDepartment;
-  const region = overrides.region ?? regionFromCountry(country);
 
   const expense: Expense = {
     dateISO: extraction.dateISO,
-    region,
+    region: resolvedRegion,
     department,
     category,
     total: {

@@ -1,6 +1,6 @@
 import { ClarificationQuestion, Extraction } from "./types";
 
-const COUNTRY_THRESHOLD = 0.8;
+const REGION_THRESHOLD = 0.8;
 const DEPARTMENT_THRESHOLD = 0.7;
 const CATEGORY_THRESHOLD = 0.7;
 
@@ -8,13 +8,13 @@ export function neededQuestions(extraction: Extraction): ClarificationQuestion[]
   const questions: ClarificationQuestion[] = [];
   const confidence = extraction.confidence;
 
-  const countryConfidence = confidence.pickupCountry ?? 0;
-  if (!extraction.pickupCountry || countryConfidence < COUNTRY_THRESHOLD) {
+  const regionConfidence = confidence.region ?? 0;
+  if (!extraction.region || regionConfidence < REGION_THRESHOLD) {
     questions.push({
-      id: "country",
+      id: "region",
       type: "single",
-      prompt: "Which country was this ride in?",
-      options: ["US", "Germany", "France", "UK", "Other"],
+      prompt: "Which region should this expense use?",
+      options: ["US", "EU", "APAC"],
     });
   }
 

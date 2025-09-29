@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { LineItem } from "../lib/types";
+import { ConfidenceBadge } from "./ConfidenceBadge";
 
 type LineItemsEditorProps = {
   items: LineItem[];
@@ -30,21 +31,24 @@ export function LineItemsEditor({ items, currency, total, onChange, onUseSumAsTo
   const addItem = () => {
     onChange([
       ...items,
-      { label: "", amount: 0, currency: undefined },
+      { label: "", amount: 0 },
     ]);
   };
 
   return (
     <section className="space-y-2 border border-slate-300 bg-white p-4">
       <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold text-slate-700">Edit items</div>
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <span>Itemized breakdown</span>
+          <ConfidenceBadge variant="green" srLabel="Itemized amounts confirmed" />
+        </div>
         <div className="flex items-center gap-2">
           <div className={
             matches
               ? "rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
               : "rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
           }>
-            {matches ? "Sum matches total" : `Sum ${sum.toFixed(2)} ${currency}`}
+            {matches ? "Sum matches total amount" : `Sum ${sum.toFixed(2)} ${currency}`}
           </div>
           {!matches && onUseSumAsTotal ? (
             <button
@@ -62,7 +66,6 @@ export function LineItemsEditor({ items, currency, total, onChange, onUseSumAsTo
           <thead>
             <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
               <th className="px-2 py-2">Label</th>
-              <th className="px-2 py-2">Currency</th>
               <th className="px-2 py-2 text-right">Amount</th>
               <th className="px-2 py-2 text-right"></th>
             </tr>
@@ -79,15 +82,6 @@ export function LineItemsEditor({ items, currency, total, onChange, onUseSumAsTo
                     onChange={(e) => updateAt(idx, { label: e.target.value })}
                   />
                 </td>
-                <td className="px-2 py-2">
-                  <input
-                    type="text"
-                    className="w-14 md:w-16 border border-slate-300 bg-white px-2 py-1 text-sm"
-                    placeholder={currency}
-                    value={it.currency ?? ""}
-                    onChange={(e) => updateAt(idx, { currency: e.target.value || undefined })}
-                  />
-                </td>
                 <td className="px-2 py-2 text-right">
                   <input
                     type="number"
@@ -100,10 +94,11 @@ export function LineItemsEditor({ items, currency, total, onChange, onUseSumAsTo
                 <td className="px-2 py-2 text-right">
                   <button
                     type="button"
-                    className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:border-rose-300 hover:text-rose-700"
+                    className="flex h-8 w-8 items-center justify-center rounded border border-slate-300 text-slate-600 transition hover:border-rose-300 hover:text-rose-700"
                     onClick={() => removeAt(idx)}
+                    aria-label={it.label ? `Remove ${it.label}` : "Remove line item"}
                   >
-                    Remove
+                    <span aria-hidden="true">🗑</span>
                   </button>
                 </td>
               </tr>

@@ -21,7 +21,14 @@
     "types": ["node"],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    // Enhanced type checking (gradual adoption)
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

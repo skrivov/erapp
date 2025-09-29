@@ -11,6 +11,7 @@ export type LineItem = {
 
 export type Expense = {
   dateISO: string;
+  country?: string;
   region: Region;
   department?: Department;
   category: Category;
@@ -44,7 +45,7 @@ export type Decision = {
 };
 
 export type ClarificationQuestion =
-  | { id: "country"; type: "single"; prompt: string; options: string[] }
+  | { id: "region"; type: "single"; prompt: string; options: string[] }
   | { id: "department"; type: "single"; prompt: string; options: string[] }
   | { id: "purpose"; type: "single"; prompt: string; options: string[] };
 
@@ -52,7 +53,8 @@ export type ExtractionConfidence = {
   amount: number;
   currency: number;
   dateISO: number;
-  pickupCountry?: number;
+  country?: number;
+  region?: number;
   category?: number;
   inferredDepartment?: number;
 };
@@ -62,7 +64,8 @@ export type Extraction = {
   currency: string;
   dateISO: string;
   vendor: string;
-  pickupCountry?: string;
+  country?: string;
+  region?: Region;
   pickupCity?: string;
   category?: Category;
   inferredDepartment?: Department;

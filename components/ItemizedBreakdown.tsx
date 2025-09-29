@@ -41,7 +41,7 @@ export function ItemizedBreakdown({ items, currency, total, title = "Itemized br
               <tr key={`${it.label}-${idx}`} className="border-b border-slate-100 last:border-0">
                 <td className="px-2 py-2">{it.label}</td>
                 <td className="px-2 py-2 text-right">
-                  {it.amount.toFixed(2)} {it.currency ?? currency}
+                  {it.amount.toFixed(2)}
                 </td>
               </tr>
             ))}
@@ -57,4 +57,3 @@ export function ItemizedBreakdown({ items, currency, total, title = "Itemized br
     </section>
   );
 }
-

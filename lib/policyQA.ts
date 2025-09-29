@@ -126,8 +126,18 @@ ${policyJson}`;
     ],
   });
 
-  const fallbackOutput = (response as any)?.output?.[0]?.content?.[0]?.text?.value;
-  const jsonPayload = response.output_text ?? fallbackOutput;
+  type ResponsePayload = {
+    output?: Array<{
+      content?: Array<{
+        text?: { value?: string };
+      }>;
+    }>;
+    output_text?: string | null;
+  };
+
+  const responsePayload = response as ResponsePayload;
+  const fallbackOutput = responsePayload.output?.[0]?.content?.[0]?.text?.value ?? null;
+  const jsonPayload = responsePayload.output_text ?? fallbackOutput;
   if (!jsonPayload) {
     throw new Error("OpenAI policy eval returned no JSON output");
   }

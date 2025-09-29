@@ -7,7 +7,7 @@ type DateTimeEditorProps = {
   label?: string;
   value: string; // ISO 8601 string with timezone
   onChange: (nextISO: string) => void;
-  confidence?: number;
+  confidenceVariant?: "green" | "yellow" | "red";
   helper?: string;
   invalid?: boolean;
 };
@@ -43,14 +43,14 @@ function toISO(date: string, time: string): string {
   )).toISOString();
 }
 
-export function DateTimeEditor({ label = "Expense date", value, onChange, confidence, helper, invalid = false }: DateTimeEditorProps) {
+export function DateTimeEditor({ label = "Expense date", value, onChange, confidenceVariant, helper, invalid = false }: DateTimeEditorProps) {
   const parts = useMemo(() => toLocalParts(value), [value]);
 
   return (
     <div className="flex flex-col gap-2 border border-slate-300 bg-white p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-slate-700">{label}</span>
-        {typeof confidence === "number" ? <ConfidenceBadge score={confidence} /> : null}
+        {confidenceVariant ? <ConfidenceBadge variant={confidenceVariant} srLabel={`${label} indicator`} /> : null}
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <input

@@ -140,7 +140,7 @@ LLM provider via server‑side API (env‑configured, JSON‑only responses)
 /scripts
   policyLint.mjs               # deterministic static lints
   policyEval.mjs               # calls /api/policy-eval or provider directly
-  validateTaxiReceipts.ts      # OCR + LLM validation harness covering taxi datasets
+  evalTaxiReceipts.ts          # OCR + LLM evaluation harness covering taxi datasets
   utils/                       # shared script helpers (OCR, ground-truth loader)
   datasets/                    # taxi_ground_truth.csv and taxi_pdfs fixtures
 /data
@@ -389,7 +389,7 @@ export const ExtractionSchema = z.object({
   currency: z.string().length(3),
   dateISO: z.string().datetime(),
   vendor: z.string().min(1),
-  pickupCountry: z.string().optional(),
+  region: z.enum(["US", "EU", "APAC"]).optional(),
   pickupCity: z.string().optional(),
   category: z.enum(["ride_hail", "travel", "meals", "software"]).optional(),
   inferredDepartment: z.enum(["engineering", "sales", "hr", "other"]).optional(),
@@ -398,7 +398,7 @@ export const ExtractionSchema = z.object({
     amount: z.number(),
     currency: z.number(),
     dateISO: z.number(),
-    pickupCountry: z.number().optional(),
+    region: z.number().optional(),
     category: z.number().optional(),
     inferredDepartment: z.number().optional(),
   }),
@@ -515,7 +515,7 @@ Req
 {
   "extraction": { /* ExtractionT */ },
   "answers": {
-    "country": "Germany",
+    "region": "EU",
     "department": "sales",
     "category": "ride_hail"
   },                                                               // user-supplied clarifications
@@ -582,7 +582,7 @@ Append one JSON object per line into /data/audit.jsonl:
   "ts": "2025-09-28T12:34:56Z",
   "extraction": { "confidence": { "amount": 0.99, "currency": 0.99, "dateISO": 0.93 } },
   "clarifications": 1,
-  "answers": { "country": "Germany", "department": "sales", "category": "ride_hail" },
+  "answers": { "region": "EU", "department": "sales", "category": "ride_hail" },
   "decision": { "steps": ["hr","finance"], "skipped": ["manager"], "ruleHits": ["eu-travel-needs-hr"] },
   "metrics": { "timeToSubmitMs": 4200 }
 }
@@ -590,11 +590,10 @@ Append one JSON object per line into /data/audit.jsonl:
 
 Note: On serverless hosts, local writes are ephemeral; acceptable for demo. For production, switch to object storage.
 
-## Testing Strategy
-### Validation Script
+## Evaluation & QA Strategy
+### Extraction Evaluation Script
 
-- `npm run validate:taxi` (alias for `tsx scripts/validateTaxiReceipts.ts`) exercises the OCR → LLM → rules pipeline against the dataset in `scripts/datasets/`.
-- Asserts key invariants: amount/currency accuracy, expected manager/compliance routing, clarification prompt limits, and explanation generation.
+- `npm run eval:taxi` (alias for `tsx scripts/evalTaxiReceipts.ts`) runs the OCR → LLM → rules pipeline against the fixtures in `scripts/datasets/` to surface extraction quality issues and missing clarifications. Treat it as a qualitative evaluation (no pass/fail assertions).
 - Supports `--subset` filters (e.g., `smoke`, `manager`, `currency`) and `--only=file1,file2` for targeted runs.
 
 ### Contract & Schema Guards
@@ -617,15 +616,14 @@ package.json scripts
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run validate:taxi",
     "policy:lint": "node ./scripts/policyLint.mjs",
     "policy:eval": "node ./scripts/policyEval.mjs",
-    "validate:taxi": "tsx ./scripts/validateTaxiReceipts.ts"
+    "eval:taxi": "tsx ./scripts/evalTaxiReceipts.ts"
   }
 }
 ```
 
-Quality gate (optional): CI fails if policy:lint finds severity=error, policy:eval returns non‑empty conflicts, or validate:taxi reports receipt issues.
+Quality gate (optional): CI can surface warnings from `policy:lint`, `policy:eval`, or `eval:taxi` if configured, but automated tests are not required in this demo.
 
 ## Security & Privacy (demo‑appropriate)
 
@@ -724,7 +722,7 @@ export function evaluate(expense: Expense, rules: Rule[]): Decision {
 ## Appendix C — Clarifications Contract
 ```typescript
 type Question =
-  | { id: "country"; type: "single"; prompt: string; options: string[] }
+  | { id: "region"; type: "single"; prompt: string; options: string[] }
   | { id: "department"; type: "single"; prompt: string; options: string[] }
   | { id: "purpose"; type: "single"; prompt: string; options: string[] };
 
@@ -734,11 +732,11 @@ export function neededQuestions(x: ExtractionT): Question[] { /* ... */ }
 
 ## Appendix D — Example Sequence (EU travel, €42)
 
-Upload Uber receipt → Extract: amount=42, currency=EUR, date=2025-09-20, vendor=UBER, pickupCity=Berlin, country=DE (0.82).
+Upload Uber receipt → Extract: amount=42, currency=EUR, date=2025-09-20, vendor=UBER, pickupCity=Berlin, region=EU (0.82).
 
-Clarifier asks: “Confirm country?” → User selects Germany.
+Clarifier asks: “Confirm region?” → User selects EU.
 
-Region map: Germany → EU. Category inferred ride_hail (0.65 baseline) → user confirms via dropdown.
+Category inferred ride_hail (0.65 baseline) → user confirms via dropdown.
 
 Evaluate at 2025-09-20:
 

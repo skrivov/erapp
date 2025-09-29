@@ -13,7 +13,19 @@ const ExtractionSchemaBase = z.object({
   dateISO: z.string().datetime(),
   // Vendor can be any taxi/ride-hailing provider name as printed
   vendor: z.string().min(1),
-  pickupCountry: z.string().optional(),
+  country: z
+    .string()
+    .min(1)  
+    .describe(
+      "Country where the ride occurred; derive from pickup/dropoff addresses or company metadata."
+    )
+    .optional(),
+  region: z
+    .enum(["US", "EU", "APAC"])
+    .describe(
+      "Expense routing region: US covers North/South America (US, Canada, Mexico, Brazil); EU covers Europe & UK; APAC covers Asia-Pacific hubs."
+    )
+    .optional(),
   pickupCity: z.string().optional(),
   // Category is business classification, not always on receipt; may be supplied/confirmed by user
   category: z.enum(["ride_hail", "travel", "meals", "software"]).optional(),
@@ -26,7 +38,8 @@ const ExtractionSchemaBase = z.object({
     amount: z.number(),
     currency: z.number(),
     dateISO: z.number(),
-    pickupCountry: z.number().optional(),
+    country: z.number().optional(),
+    region: z.number().optional(),
     // Category confidence reflects inference quality (not on receipt)
     category: z.number().optional(),
     inferredDepartment: z.number().optional(),

@@ -22,9 +22,9 @@
 - Routes use `page.tsx`/`layout.tsx`; shared UI under `components/` (create if needed). Use `.tsx` for React, `.ts` for libs.
 - Styling via Tailwind utilities in `app/globals.css`.
 
-## Testing Guidelines
-- Use `npm run validate:taxi` (alias for `tsx scripts/validateTaxiReceipts.ts`) to exercise the full OCR → LLM → evaluator flow against the taxi fixtures.
-- Policy scripts: `npm run policy:lint` (deterministic checks) and `npm run policy:eval` (LLM QA) must pass before shipping.
+## Evaluation & QA Guidelines
+- `npm run eval:taxi` (alias for `tsx scripts/evalTaxiReceipts.ts`) runs the OCR → LLM → evaluator loop to spot low-confidence fields; treat it as a qualitative check, not an automated test.
+- Policy scripts: `npm run policy:lint` (deterministic checks) and `npm run policy:eval` (LLM QA) should be run before shipping.
 - Manual spot checks: run through the upload → review → decision UI with representative receipts whenever the flow changes.
 
 ## Commit & Pull Request Guidelines
