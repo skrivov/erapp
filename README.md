@@ -1,6 +1,5 @@
-# Expense Reimbursement Conversational Agent (ERCA)
+# Expense Reimbursement Conversational Agent: Exercise
 
-This demo Next.js application pairs LLM-assisted receipt extraction with a deterministic policy evaluator to streamline expense approval routing. The build follows `SPEC.md`, leveraging file-backed policies, Tailwind UI components, and Zod-validated data contracts.
 
 ## Analysis of Requirements
 
