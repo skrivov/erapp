@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ApprovalStepper } from "../../components/ApprovalStepper";
-import { RuleHitList } from "../../components/RuleHitList";
-import { ItemizedBreakdown } from "../../components/ItemizedBreakdown";
-import type { Decision, Extraction, Expense } from "../../lib/types";
+import { ApprovalStepper } from "../../../components/ApprovalStepper";
+import { RuleHitList } from "../../../components/RuleHitList";
+import { ItemizedBreakdown } from "../../../components/ItemizedBreakdown";
+import type { Decision, Extraction, Expense } from "../../../lib/types";
 
 const DECISION_KEY = "erca:decision";
 
@@ -37,7 +37,7 @@ export function DecisionClient() {
   useEffect(() => {
     const data = parseStored();
     if (!data) {
-      router.replace("/upload");
+      router.replace("/home/upload");
       return;
     }
     setPayload(data);
@@ -107,14 +107,14 @@ export function DecisionClient() {
         <button
           type="button"
           className="border border-emerald-600 bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-          onClick={() => router.push("/upload")}
+          onClick={() => router.push("/home/upload")}
         >
           Start new receipt
         </button>
         <button
           type="button"
           className="border border-slate-300 px-5 py-2 text-sm text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700"
-          onClick={() => router.push("/admin/policies")}
+          onClick={() => router.push("/policies")}
         >
           View policies
         </button>

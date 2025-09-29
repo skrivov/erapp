@@ -28,20 +28,14 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen text-[color:var(--foreground)]`}>
         <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-6 py-8">
           <header className="flex items-center justify-between border-b border-slate-200 bg-white px-0 pb-3">
-            <Link href="/upload" className="text-lg font-semibold text-slate-800">
+            <Link href="/home/upload" className="text-lg font-semibold text-slate-800">
               ERCA Demo
             </Link>
             <nav className="flex items-center gap-3 text-sm text-slate-600">
-              <Link href="/upload" className="px-2 py-1 transition hover:text-emerald-600">
-                Upload
+              <Link href="/home/upload" className="px-2 py-1 transition hover:text-emerald-600">
+                Home
               </Link>
-              <Link href="/review" className="px-2 py-1 transition hover:text-emerald-600">
-                Review
-              </Link>
-              <Link href="/decision" className="px-2 py-1 transition hover:text-emerald-600">
-                Decision
-              </Link>
-              <Link href="/admin/policies" className="px-2 py-1 transition hover:text-emerald-600">
+              <Link href="/policies" className="px-2 py-1 transition hover:text-emerald-600">
                 Policies
               </Link>
             </nav>

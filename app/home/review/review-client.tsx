@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ClarifierChat } from "../../components/ClarifierChat";
-import { FieldEditor } from "../../components/FieldEditor";
-import { ReceiptPreview } from "../../components/ReceiptPreview";
-import { ItemizedBreakdown } from "../../components/ItemizedBreakdown";
-import { LineItemsEditor } from "../../components/LineItemsEditor";
-import { DateTimeEditor } from "../../components/DateTimeEditor";
-import { regionFromCountry } from "../../lib/region";
-import type { ClarificationQuestion, Extraction, Expense } from "../../lib/types";
+import { ClarifierChat } from "../../../components/ClarifierChat";
+import { FieldEditor } from "../../../components/FieldEditor";
+import { ReceiptPreview } from "../../../components/ReceiptPreview";
+import { LineItemsEditor } from "../../../components/LineItemsEditor";
+import { DateTimeEditor } from "../../../components/DateTimeEditor";
+import { regionFromCountry } from "../../../lib/region";
+import type { ClarificationQuestion, Extraction, Expense } from "../../../lib/types";
 
 const REVIEW_KEY = "erca:review";
 const DECISION_KEY = "erca:decision";
@@ -75,7 +74,7 @@ export function ReviewClient() {
   useEffect(() => {
     const data = parseStored();
     if (!data) {
-      router.replace("/upload");
+      router.replace("/home/upload");
       return;
     }
     setPayload(data);
@@ -83,6 +82,10 @@ export function ReviewClient() {
 
   const extraction = payload?.extraction;
   const needsQuestions = payload?.needsQuestions ?? [];
+  const clarifierQuestions = useMemo(
+    () => needsQuestions.filter((question) => question.id !== "department"),
+    [needsQuestions]
+  );
 
   const updateExtraction = <K extends keyof Extraction>(key: K, value: Extraction[K]) => {
     if (!extraction || !payload) {
@@ -103,7 +106,7 @@ export function ReviewClient() {
 
   function computeValidation(
     extraction: Extraction | undefined,
-    answers: Record<string, string>
+    departmentSelected: boolean
   ): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
     if (!extraction) return { valid: false, errors: ["Missing extraction payload"] };
@@ -120,9 +123,8 @@ export function ReviewClient() {
       errors.push("Expense date is invalid.");
     }
 
-    const dep = answers.department || extraction.inferredDepartment;
-    if (!dep) {
-      errors.push("Department is required.");
+    if (!departmentSelected) {
+      errors.push("Select a department before submitting.");
     }
 
     if (extraction.items && extraction.items.length > 0) {
@@ -142,22 +144,25 @@ export function ReviewClient() {
     () =>
       sanitizeAnswers({
         country: answers.country ?? extraction?.pickupCountry ?? "",
-        department: answers.department ?? extraction?.inferredDepartment ?? "",
+        department: answers.department ?? "",
         category: answers.category ?? extraction?.category ?? "",
       }),
     [answers, extraction]
   );
 
+  const suggestedDepartment = extraction?.inferredDepartment ?? "";
+  const departmentValue = answers.department ?? "";
+  const departmentSelected =
+    typeof departmentValue === "string" ? departmentValue.trim().length > 0 : Boolean(departmentValue);
+
   const validation = useMemo(
-    () => computeValidation(extraction, mergedAnswers),
-    [extraction, mergedAnswers]
+    () => computeValidation(extraction, departmentSelected),
+    [departmentSelected, extraction]
   );
 
   const amountInvalid = !extraction || !Number.isFinite(extraction.amount) || extraction.amount <= 0;
   const currencyInvalid = !extraction || !extraction.currency || extraction.currency.length !== 3;
   const dateInvalid = !extraction || !extraction.dateISO || isNaN(new Date(extraction.dateISO).getTime());
-  const departmentMissing = !mergedAnswers.department;
-
   const onSubmit = async () => {
     if (!extraction) {
       return;
@@ -187,7 +192,7 @@ export function ReviewClient() {
         DECISION_KEY,
         JSON.stringify({ ...decisionPayload, expense, extraction })
       );
-      router.push("/decision");
+      router.push("/home/decision");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit expense");
     } finally {
@@ -233,15 +238,6 @@ export function ReviewClient() {
             invalid={dateInvalid}
             helper={dateInvalid ? "Enter a valid date and time" : undefined}
           />
-          {extraction.items && extraction.items.length > 0 ? (
-            <ItemizedBreakdown
-              items={extraction.items}
-              currency={extraction.currency}
-              total={extraction.amount}
-              title="Itemized breakdown (from receipt)"
-            />
-          ) : null}
-
           <LineItemsEditor
             items={extraction.items ?? []}
             currency={extraction.currency}
@@ -260,18 +256,6 @@ export function ReviewClient() {
             }}
           />
           <FieldEditor
-            label="Department"
-            value={extraction.inferredDepartment ?? ""}
-            confidence={extraction.confidence.inferredDepartment}
-            options={["engineering", "sales", "hr", "other"]}
-            invalid={departmentMissing}
-            helper={departmentMissing ? "Required" : undefined}
-            onChange={(value) => {
-              updateExtraction("inferredDepartment", value as Extraction["inferredDepartment"]);
-              handleAnswer("department", value);
-            }}
-          />
-          <FieldEditor
             label="Category"
             value={extraction.category ?? ""}
             confidence={extraction.confidence.category}
@@ -283,8 +267,26 @@ export function ReviewClient() {
           />
         </div>
         <div className="flex flex-col gap-4">
-          <ClarifierChat questions={needsQuestions} answers={answers} onAnswer={handleAnswer} />
           {payload?.rawText ? <ReceiptPreview text={payload.rawText} /> : null}
+          <FieldEditor
+            label="Department"
+            value={departmentValue}
+            options={["engineering", "sales", "hr", "other"]}
+            confidence={extraction.confidence.inferredDepartment}
+            invalid={!departmentSelected}
+            helper={
+              !departmentSelected
+                ? suggestedDepartment
+                  ? `Suggested: ${suggestedDepartment}. Choose the confirmed department before submitting.`
+                  : "Choose the department before submitting."
+                : undefined
+            }
+            onChange={(value) => {
+              handleAnswer("department", value);
+              updateExtraction("inferredDepartment", value as Extraction["inferredDepartment"]);
+            }}
+          />
+          <ClarifierChat questions={clarifierQuestions} answers={answers} onAnswer={handleAnswer} />
         </div>
       </div>
       {!validation.valid ? (
@@ -310,7 +312,7 @@ export function ReviewClient() {
         <button
           type="button"
           className="border border-slate-300 px-5 py-2.5 text-sm text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700"
-          onClick={() => router.push("/upload")}
+          onClick={() => router.push("/home/upload")}
         >
           Back
         </button>

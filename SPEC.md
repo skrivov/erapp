@@ -138,8 +138,8 @@ LLM provider via server‑side API (env‑configured, JSON‑only responses)
   region.apac.json
   categories.json              # enum & labels (read-only)
 /scripts
-  policyLint.ts                # deterministic static lints
-  policyEval.ts                # calls /api/policy-eval or provider directly
+  policyLint.mjs               # deterministic static lints
+  policyEval.mjs               # calls /api/policy-eval or provider directly
   validateTaxiReceipts.ts      # OCR + LLM validation harness covering taxi datasets
   utils/                       # shared script helpers (OCR, ground-truth loader)
   datasets/                    # taxi_ground_truth.csv and taxi_pdfs fixtures
@@ -377,22 +377,34 @@ Output (must match Zod schema):
 ```typescript
 // /schemas/extraction.schema.ts
 import { z } from "zod";
-export const Extraction = z.object({
+
+export const LineItemSchema = z.object({
+  label: z.string().min(1),
+  amount: z.number(),
+  currency: z.string().length(3).optional(),
+});
+
+export const ExtractionSchema = z.object({
   amount: z.number().positive(),
-  currency: z.string().length(3),           // ISO 4217
+  currency: z.string().length(3),
   dateISO: z.string().datetime(),
-  vendor: z.enum(["UBER","LYFT"]),
+  vendor: z.string().min(1),
   pickupCountry: z.string().optional(),
   pickupCity: z.string().optional(),
-  category: z.enum(["ride_hail","travel","meals","software"]).default("ride_hail"),
-  inferredDepartment: z.enum(["engineering","sales","hr","other"]).optional(),
+  category: z.enum(["ride_hail", "travel", "meals", "software"]).optional(),
+  inferredDepartment: z.enum(["engineering", "sales", "hr", "other"]).optional(),
+  items: z.array(LineItemSchema).optional(),
   confidence: z.object({
-    amount: z.number(), currency: z.number(), dateISO: z.number(),
+    amount: z.number(),
+    currency: z.number(),
+    dateISO: z.number(),
     pickupCountry: z.number().optional(),
-    category: z.number(), inferredDepartment: z.number().optional()
-  })
+    category: z.number().optional(),
+    inferredDepartment: z.number().optional(),
+  }),
 });
-export type ExtractionT = z.infer<typeof Extraction>;
+
+export type ExtractionSchemaT = z.infer<typeof ExtractionSchema>;
 ```
 
 
@@ -546,13 +558,15 @@ Res
 ## UI Specification
 ### Pages
 
-/upload: Drag‑and‑drop, paste text, vendor quick‑select, “Extract” button.
+/home/upload: Drag‑and‑drop, paste text, vendor quick‑select, “Extract” button. Acts as step 1 of the wizard.
 
-/review: Editable field cards with ConfidenceBadges; ClarifierChat asks at most 2 questions. Fields not present on the receipt (category, department, purpose) surface as editable chips with low-confidence warnings until the user confirms or replaces them.
+/home/review: Editable field cards with ConfidenceBadges; ClarifierChat asks at most 2 questions. Fields not present on the receipt (category, department, purpose) surface as editable chips with low-confidence warnings until the user confirms or replaces them. Wizard step 2.
 
-/decision: ApprovalStepper (chips), RuleHitList (IDs, short names, thresholds), explanation paragraph, “What‑if” toggles (department/purpose).
+/home/decision: ApprovalStepper (chips), RuleHitList (IDs, short names, thresholds), explanation paragraph, “What‑if” toggles (department/purpose). Wizard step 3.
 
-/admin/policies: Read‑only viewer of merged policies and currently active ones for a chosen date.
+/upload, /review, /decision: Compat routes that redirect into the /home/* wizard.
+
+/policies: Read‑only viewer of merged policies and currently active ones for a chosen date.
 
 ### UX Rules
 
@@ -604,8 +618,8 @@ package.json scripts
     "start": "next start",
     "lint": "eslint",
     "test": "npm run validate:taxi",
-    "policy:lint": "tsx ./scripts/policyLint.ts",
-    "policy:eval": "tsx ./scripts/policyEval.ts",
+    "policy:lint": "node ./scripts/policyLint.mjs",
+    "policy:eval": "node ./scripts/policyEval.mjs",
     "validate:taxi": "tsx ./scripts/validateTaxiReceipts.ts"
   }
 }

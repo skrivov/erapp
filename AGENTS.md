@@ -23,9 +23,9 @@
 - Styling via Tailwind utilities in `app/globals.css`.
 
 ## Testing Guidelines
-- Add tests with Jest + React Testing Library; optional Playwright for E2E.
-- Name as `*.test.ts`/`*.test.tsx`; colocate or use `__tests__/`.
-- Prioritize schemas, the deterministic evaluator, and API contracts from `SPEC.md`.
+- Use `npm run validate:taxi` (alias for `tsx scripts/validateTaxiReceipts.ts`) to exercise the full OCR → LLM → evaluator flow against the taxi fixtures.
+- Policy scripts: `npm run policy:lint` (deterministic checks) and `npm run policy:eval` (LLM QA) must pass before shipping.
+- Manual spot checks: run through the upload → review → decision UI with representative receipts whenever the flow changes.
 
 ## Commit & Pull Request Guidelines
 - Commits: small, imperative; prefer Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`).
