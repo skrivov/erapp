@@ -6,10 +6,12 @@ import {
   FormEvent,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
 import { ReceiptPreview } from "../../../components/ReceiptPreview";
+import { ArtifactPreview } from "../../../components/ArtifactPreview";
 
 const REVIEW_KEY = "erca:review";
 
@@ -22,6 +24,8 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [processingFile, setProcessingFile] = useState(false);
+  const [artifactUrl, setArtifactUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const resetOcrState = useCallback(() => {
     setProcessingFile(false);
@@ -42,6 +46,7 @@ export default function UploadPage() {
     setError(null);
     setOcrProgress(0);
     setFileName(file.name);
+    setArtifactUrl(null);
 
     try {
       const dataUrl = await (async () => {
@@ -80,6 +85,8 @@ export default function UploadPage() {
         });
       })();
 
+      setArtifactUrl(dataUrl);
+
       const Tesseract = await import("tesseract.js");
       const result = await Tesseract.recognize(dataUrl, "eng", {
         logger: (message) => {
@@ -99,6 +106,7 @@ export default function UploadPage() {
       const message = err instanceof Error ? err.message : "Unable to process file";
       setError(message);
       setFileName(null);
+      setArtifactUrl(null);
     } finally {
       resetOcrState();
     }
@@ -165,7 +173,12 @@ export default function UploadPage() {
       const extractionPayload = await response.json();
       sessionStorage.setItem(
         REVIEW_KEY,
-        JSON.stringify({ ...extractionPayload, rawText: text })
+        JSON.stringify({
+          ...extractionPayload,
+          rawText: text,
+          artifactUrl: artifactUrl ?? undefined,
+          artifactName: fileName ?? undefined,
+        })
       );
       router.push("/home/review");
     } catch (err) {
@@ -203,7 +216,7 @@ export default function UploadPage() {
           if (processingFile) {
             return;
           }
-          document.getElementById("receipt-file-input")?.click();
+          fileInputRef.current?.click();
         }}
       >
         <input
@@ -213,18 +226,31 @@ export default function UploadPage() {
           className="hidden"
           onChange={onFileInput}
           disabled={processingFile}
+          ref={fileInputRef}
         />
         <span className="text-sm uppercase tracking-wide text-slate-500">Tesseract OCR</span>
         <p className="text-center text-sm text-slate-600">{dropInstructions}</p>
       </section>
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        {hasText ? (
-          <ReceiptPreview text={text} filename={fileName ?? undefined} />
-        ) : (
-          <div className="border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-            OCR results will appear here once your receipt finishes processing.
+        <div className="grid gap-4 md:grid-cols-2 md:items-start md:[grid-auto-rows:1fr]">
+          <ArtifactPreview
+            url={artifactUrl}
+            filename={fileName ?? undefined}
+            placeholder="Upload a receipt to preview the original image here."
+            initialScale={1}
+            maxHeightClass="h-[28rem]"
+            disableControls
+          />
+          <div className="flex h-full flex-col">
+            {hasText ? (
+              <ReceiptPreview text={text} filename={fileName ?? undefined} maxHeightClass="h-[28rem]" />
+            ) : (
+              <div className="border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+                OCR results will appear here once your receipt finishes processing.
+              </div>
+            )}
           </div>
-        )}
+        </div>
         {error ? <p className="text-sm text-rose-600">{error}</p> : null}
         <div className="flex items-center gap-3">
           <button
@@ -241,6 +267,7 @@ export default function UploadPage() {
               setFileName(null);
               setOcrProgress(0);
               setIsDragging(false);
+              setArtifactUrl(null);
               updateText("");
             }}
           >

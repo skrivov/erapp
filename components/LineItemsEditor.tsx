@@ -57,8 +57,8 @@ export function LineItemsEditor({ items, currency, total, onChange, onUseSumAsTo
           ) : null}
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm text-slate-700">
+      <div className="overflow-x-auto md:overflow-visible">
+        <table className="w-full text-left text-sm text-slate-700">
           <thead>
             <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
               <th className="px-2 py-2">Label</th>
@@ -73,7 +73,7 @@ export function LineItemsEditor({ items, currency, total, onChange, onUseSumAsTo
                 <td className="px-2 py-2">
                   <input
                     type="text"
-                    className="w-full border border-slate-300 bg-white px-2 py-1 text-sm"
+                    className="w-full md:min-w-[12rem] border border-slate-300 bg-white px-2 py-1 text-sm"
                     placeholder="Item label"
                     value={it.label}
                     onChange={(e) => updateAt(idx, { label: e.target.value })}
@@ -82,7 +82,7 @@ export function LineItemsEditor({ items, currency, total, onChange, onUseSumAsTo
                 <td className="px-2 py-2">
                   <input
                     type="text"
-                    className="w-24 border border-slate-300 bg-white px-2 py-1 text-sm"
+                    className="w-14 md:w-16 border border-slate-300 bg-white px-2 py-1 text-sm"
                     placeholder={currency}
                     value={it.currency ?? ""}
                     onChange={(e) => updateAt(idx, { currency: e.target.value || undefined })}
@@ -92,7 +92,7 @@ export function LineItemsEditor({ items, currency, total, onChange, onUseSumAsTo
                   <input
                     type="number"
                     step="0.01"
-                    className="w-32 border border-slate-300 bg-white px-2 py-1 text-right text-sm"
+                    className="w-20 md:w-24 border border-slate-300 bg-white px-2 py-1 text-right text-sm"
                     value={Number.isFinite(it.amount) ? String(it.amount) : ""}
                     onChange={(e) => updateAt(idx, { amount: Number(e.target.value || 0) })}
                   />

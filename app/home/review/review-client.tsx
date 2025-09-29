@@ -4,18 +4,23 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClarifierChat } from "../../../components/ClarifierChat";
 import { FieldEditor } from "../../../components/FieldEditor";
-import { ReceiptPreview } from "../../../components/ReceiptPreview";
+import { ArtifactPreview } from "../../../components/ArtifactPreview";
 import { LineItemsEditor } from "../../../components/LineItemsEditor";
-import { DateTimeEditor } from "../../../components/DateTimeEditor";
 import { regionFromCountry } from "../../../lib/region";
 import type { ClarificationQuestion, Extraction, Expense } from "../../../lib/types";
 
 const REVIEW_KEY = "erca:review";
 const DECISION_KEY = "erca:decision";
 
-function parseStored():
-  | { extraction: Extraction; needsQuestions: ClarificationQuestion[]; rawText?: string }
-  | null {
+type ReviewSessionPayload = {
+  extraction: Extraction;
+  needsQuestions: ClarificationQuestion[];
+  rawText?: string;
+  artifactUrl?: string;
+  artifactName?: string;
+};
+
+function parseStored(): ReviewSessionPayload | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -63,10 +68,7 @@ function buildExpense(extraction: Extraction, answers: Record<string, string>): 
 
 export function ReviewClient() {
   const router = useRouter();
-  const [payload, setPayload] = useState<
-    | { extraction: Extraction; needsQuestions: ClarificationQuestion[]; rawText?: string }
-    | null
-  >(null);
+  const [payload, setPayload] = useState<ReviewSessionPayload | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +83,10 @@ export function ReviewClient() {
   }, [router]);
 
   const extraction = payload?.extraction;
-  const needsQuestions = payload?.needsQuestions ?? [];
+  const needsQuestions = useMemo(
+    () => payload?.needsQuestions ?? [],
+    [payload]
+  );
   const clarifierQuestions = useMemo(
     () => needsQuestions.filter((question) => question.id !== "department"),
     [needsQuestions]
@@ -212,48 +217,54 @@ export function ReviewClient() {
           Confirm low-confidence fields and provide quick clarifications. You can always override values before submitting for routing.
         </p>
       </header>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-start">
         <div className="flex flex-col gap-4">
-          <FieldEditor
-            label="Amount"
-            type="number"
-            value={extraction.amount}
-            confidence={extraction.confidence.amount}
-            onChange={(value) => updateExtraction("amount", Number(value))}
-            invalid={amountInvalid}
-            helper={amountInvalid ? "Enter a positive amount" : undefined}
-          />
-          <FieldEditor
-            label="Currency"
-            value={extraction.currency}
-            confidence={extraction.confidence.currency}
-            onChange={(value) => updateExtraction("currency", value)}
-            invalid={currencyInvalid}
-            helper={currencyInvalid ? "3-letter code, e.g., USD" : undefined}
-          />
-          <DateTimeEditor
-            value={extraction.dateISO}
-            confidence={extraction.confidence.dateISO}
-            onChange={(nextISO) => updateExtraction("dateISO", nextISO)}
-            invalid={dateInvalid}
-            helper={dateInvalid ? "Enter a valid date and time" : undefined}
-          />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <FieldEditor
+              label="Amount"
+              type="number"
+              value={extraction.amount}
+              confidence={extraction.confidence.amount}
+              onChange={(value) => updateExtraction("amount", Number(value))}
+              invalid={amountInvalid}
+              helper={amountInvalid ? "Enter a positive amount" : undefined}
+            />
+            <FieldEditor
+              label="Currency"
+              value={extraction.currency}
+              confidence={extraction.confidence.currency}
+              onChange={(value) => updateExtraction("currency", value)}
+              invalid={currencyInvalid}
+              helper={currencyInvalid ? "3-letter code, e.g., USD" : undefined}
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <FieldEditor
+              label="Date"
+              value={new Date(extraction.dateISO).toISOString().split("T")[0]}
+              confidence={extraction.confidence.dateISO}
+              type="date"
+              onChange={(value) => updateExtraction("dateISO", `${value}T00:00:00.000Z`)}
+              invalid={dateInvalid}
+              helper={dateInvalid ? "Enter a valid date" : undefined}
+            />
+            <FieldEditor
+              label="Country"
+              value={extraction.pickupCountry ?? ""}
+              confidence={extraction.confidence.pickupCountry}
+              options={["US", "Germany", "France", "UK", "Other"]}
+              onChange={(value) => {
+                updateExtraction("pickupCountry", value);
+                handleAnswer("country", value);
+              }}
+            />
+          </div>
           <LineItemsEditor
             items={extraction.items ?? []}
             currency={extraction.currency}
             total={extraction.amount}
             onChange={(items) => updateExtraction("items", items)}
             onUseSumAsTotal={(sum) => updateExtraction("amount", Number(sum.toFixed(2)))}
-          />
-          <FieldEditor
-            label="Country"
-            value={extraction.pickupCountry ?? ""}
-            confidence={extraction.confidence.pickupCountry}
-            options={["US", "Germany", "France", "UK", "Other"]}
-            onChange={(value) => {
-              updateExtraction("pickupCountry", value);
-              handleAnswer("country", value);
-            }}
           />
           <FieldEditor
             label="Category"
@@ -267,7 +278,13 @@ export function ReviewClient() {
           />
         </div>
         <div className="flex flex-col gap-4">
-          {payload?.rawText ? <ReceiptPreview text={payload.rawText} /> : null}
+          <ArtifactPreview
+            url={payload?.artifactUrl}
+            filename={payload?.artifactName}
+            placeholder="Receipt image will appear here once uploaded."
+            initialScale={1}
+            maxHeightClass="max-h-[32rem]"
+          />
           <FieldEditor
             label="Department"
             value={departmentValue}
