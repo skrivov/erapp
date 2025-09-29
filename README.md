@@ -49,3 +49,14 @@ Asia-Pacific Office uses Indian Rupees.
 Every department requires submissions in their specific currencies.
 
 These assumptions are deduced from the fact that each department defines rules using regional currency.
+
+## Key Technical Elements (see SPEC.md)
+
+- Architecture: Next.js App Router (TypeScript), Tailwind, Zod validation.
+- Policies: File‑backed JSON under `policies/` with effective dates and precedence; deterministic evaluator in `lib/evaluate.ts` with fixed step order.
+- APIs: `POST /api/extract`, `POST /api/submit`, `GET /api/policies`, `POST /api/policy-eval`.
+- LLM usage: Structured extraction to schema with confidence thresholds; minimal clarifications; dev‑only policy QA.
+- Data & storage: No DB; demo audit log at `data/audit.jsonl`.
+- Scripts: `npm run eval:taxi`, `npm run policy:lint`, `npm run policy:eval`.
+
+For full architecture, contracts, and flows, see SPEC.md.
