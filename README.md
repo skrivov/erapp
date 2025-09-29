@@ -50,6 +50,14 @@ Every department requires submissions in their specific currencies.
 
 These assumptions are deduced from the fact that each department defines rules using regional currency.
 
+## Edge Cases
+
+- An employee from a U.S. regional office travels to an EU country. The taxi receipt is issued in euros, but the expenses must be submitted in U.S. dollars.
+
+- An employee receives a receipt itemized in a vendor-specific format, but the department requires a department-specific breakdown.
+
+To handle these cases, we support an editable reimbursement form. The UI also prevents submitting a reimbursement request in a currency different from the required currency of the regional office.
+
 ## Key Technical Elements (see SPEC.md)
 
 - Architecture: Next.js App Router (TypeScript), Tailwind, Zod validation.
