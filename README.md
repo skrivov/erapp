@@ -104,13 +104,59 @@ graph LR
 
 The flow demonstrates the key principle: **LLMs extract and suggest; deterministic rules decide.**
 
-## Key Technical Elements (see SPEC.md)
+## Implementation Overview
 
-- Architecture: Next.js App Router (TypeScript), Tailwind, Zod validation.
-- Policies: File‑backed JSON under `policies/` with effective dates and precedence; deterministic evaluator in `lib/evaluate.ts` with fixed step order.
-- APIs: `POST /api/extract`, `POST /api/submit`, `GET /api/policies`, `POST /api/policy-eval`.
-- LLM usage: Structured extraction to schema with confidence thresholds; form-based review with visual indicators for low-confidence fields; dev‑only policy QA.
-- Data & storage: No DB; demo audit log at `data/audit.jsonl`.
-- Scripts: `npm run eval:taxi`, `npm run policy:lint`, `npm run policy:eval`.
+### Technology Stack
+- **Framework**: Next.js 15 (App Router) with TypeScript
+- **Styling**: Tailwind CSS v4
+- **Validation**: Zod for runtime schema validation
+- **LLM Provider**: OpenAI API (server-side only)
+- **OCR**: Tesseract.js for text extraction from images
+- **PDF Processing**: PDF.js (pdfjs-dist) for PDF parsing
 
-For full architecture, contracts, and flows, see SPEC.md.
+### Policy Management
+- **Storage**: File-backed JSON rules in `policies/` directory
+- **Versioning**: Effective date ranges (`effective_from`, `effective_to`) enable temporal rule changes
+- **Evaluation**: Deterministic rule engine in `lib/evaluate.ts` with fixed approval step ordering
+- **Quality Assurance**:
+  - `npm run policy:lint` - Static validation of policy JSON structure
+  - `npm run policy:eval` - LLM-based conflict and gap detection
+
+### API Endpoints
+- **`POST /api/extract`** - Accepts receipt image/text, returns structured extraction with confidence scores
+- **`POST /api/submit`** - Evaluates expense against active rules, returns approval chain + audit entry
+- **`GET /api/policies`** - Returns merged active policies for a given date (read-only)
+- **`POST /api/policy-eval`** - Development-only endpoint for LLM policy quality analysis
+
+### LLM Usage Philosophy
+The system uses LLMs for **extraction and assistance only**, never for business decisions:
+- **Extraction**: Convert unstructured receipts into structured data (via `extraction.schema.ts`)
+- **Confidence Scoring**: Per-field confidence to guide user attention
+- **Explanations**: Generate human-readable rationale for decisions (post-evaluation)
+- **Policy QA** (dev-only): Suggest test cases and identify rule conflicts
+
+**Critical**: All approval routing decisions are made by deterministic rules in `lib/evaluate.ts`, not by LLMs.
+
+### Data & Storage
+- **No Database**: Demo application uses file-based storage only
+- **Audit Trail**: Append-only `data/audit.jsonl` logs all submissions (demo purposes; ephemeral in serverless)
+- **Policies**: JSON files version-controlled in `/policies`
+
+### Evaluation Scripts
+- **`npm run eval:taxi`** - Runs end-to-end evaluation on taxi receipt fixtures with ground truth comparison
+- **`npm run policy:lint`** - Validates policy JSON syntax, date ranges, and selector consistency
+- **`npm run policy:eval`** - Generates policy quality report with LLM-detected issues
+
+### Key Files & Modules
+| Path | Purpose |
+|------|---------|
+| `lib/evaluate.ts` | Deterministic rule engine (filters, applies, orders approval steps) |
+| `lib/extractionLLM.ts` | OpenAI API wrapper for structured extraction |
+| `lib/policyLoader.ts` | Loads and validates policy JSON files |
+| `schemas/extraction.schema.ts` | Zod schema defining receipt extraction contract |
+| `schemas/policy.schema.ts` | Zod schema defining policy DSL structure |
+| `scripts/evalTaxiReceipts.ts` | End-to-end evaluation harness with OCR + ground truth |
+
+---
+
+**For complete technical specification, API contracts, type definitions, and detailed flows, see [SPEC.md](SPEC.md).**
