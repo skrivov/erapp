@@ -66,6 +66,28 @@ To handle these cases, we support an editable reimbursement form. The UI also pr
 - Examples of rules that trigger department specific itemization
 
 
+## Application Execution Flow
+
+```mermaid
+graph LR
+    A[Upload Receipt<br/>PDF/Image/Text] --> B[OCR Processing<br/>Tesseract.js]
+    B --> C[LLM Extraction<br/>OpenAI API]
+    C --> D[Structured Data<br/>+ Confidence Scores]
+    D --> E[Expense Reimbursement<br/>Form Review]
+    E --> F{Low Confidence<br/>Fields?}
+    F -->|Yes| G[Visual Indicators<br/>User Edits]
+    F -->|No| H[User Confirms]
+    G --> H
+    H --> I[Rule Evaluation<br/>lib/evaluate.ts]
+    I --> J[Filter Active Rules<br/>by Date & Selectors]
+    J --> K[Apply Rule Effects<br/>Required/Skip/Route]
+    K --> L[Decision:<br/>Approval Route]
+    L --> M[Display Results<br/>+ Rule Explanations]
+    M --> N[Audit Log<br/>data/audit.jsonl]
+```
+
+The flow demonstrates the key principle: **LLMs extract and suggest; deterministic rules decide.**
+
 ## Key Technical Elements (see SPEC.md)
 
 - Architecture: Next.js App Router (TypeScript), Tailwind, Zod validation.
