@@ -24,7 +24,7 @@ Handle rule changes over time (effective dates) without breaking existing logic.
 
 ### Measurable Success (file‑logged)
 
-Clarifications per submission: median ≤ 1.0 (on fixture set).
+Low-confidence fields per submission: median ≤ 2 fields requiring attention (on fixture set). **Note:** Evolved from "clarifications per submission" as the implementation moved from sequential Q&A to form-based review with visual indicators.
 
 Misroute rate (wrong approval chain) on fixtures: ≤ 2% after guardrails.
 
@@ -91,22 +91,37 @@ As a developer, I can run policy QA to detect overlapping rules or missing edge 
 
 Next.js (App Router) + TypeScript
 
-Tailwind CSS
+Tailwind CSS (v4)
 
 Zod for schema validation
 
 Node fs for reading /policies and writing /data/audit.jsonl
 
-LLM provider via server‑side API (env‑configured, JSON‑only responses)
+OpenAI API for LLM (via openai package, server‑side only)
+
+Tesseract.js for OCR text extraction
+
+PDF.js (pdfjs-dist) for PDF parsing
+
+tsx for running TypeScript scripts directly
 
 ## File & Module Layout
 ```text
 /app
   /(routes)
-    /upload/page.tsx           # Upload or paste receipt text
-    /review/page.tsx           # Show extracted fields + clarifications
-    /decision/page.tsx         # Final approval chain + rationale
-    /admin/policies/page.tsx   # Read-only policy browser + rule hit viewer
+    /home
+      /upload/page.tsx         # Upload or paste receipt text (wizard step 1)
+      /review/page.tsx         # Show extracted fields + clarifications (wizard step 2)
+      /review/review-client.tsx # Client component for review page
+      /decision/page.tsx       # Final approval chain + rationale (wizard step 3)
+      /decision/decision-client.tsx # Client component for decision page
+      /layout.tsx              # Wizard layout with WizardNav
+      /page.tsx                # Redirects to /home/upload
+    /upload/page.tsx           # Compat redirect to /home/upload
+    /review/page.tsx           # Compat redirect to /home/review
+    /decision/page.tsx         # Compat redirect to /home/decision
+    /policies/page.tsx         # Read-only policy browser + rule hit viewer
+    /admin/policies/page.tsx   # Redirects to /policies
   /api
     receipts/route.ts          # (optional) upload stub; for demo supports text
     extract/route.ts           # calls LLM to extract fields + confidences
@@ -114,17 +129,28 @@ LLM provider via server‑side API (env‑configured, JSON‑only responses)
     policies/route.ts          # returns merged policies (read-only)
     policy-eval/route.ts       # dev-only LLM QA endpoint (guarded by env)
 /components
-  ReceiptPreview.tsx
-  FieldEditor.tsx
-  ClarifierChat.tsx
-  ApprovalStepper.tsx
-  RuleHitList.tsx
-  ConfidenceBadge.tsx
+  ArtifactPreview.tsx          # Preview for uploaded receipts (OCR/PDF)
+  ReceiptPreview.tsx           # Receipt display component
+  FieldEditor.tsx              # Generic field editing component
+  DateTimeEditor.tsx           # Date/time field editor
+  LineItemsEditor.tsx          # Editor for itemized line items
+  ItemizedBreakdown.tsx        # Display itemized breakdown
+  ClarifierChat.tsx            # Clarification questions UI
+  ApprovalStepper.tsx          # Approval chain stepper visualization
+  RuleHitList.tsx              # Display rule hits and explanations
+  ConfidenceBadge.tsx          # Confidence score badge
+  WizardNav.tsx                # Wizard navigation component
 /lib
   evaluate.ts                  # deterministic rule engine
   policyLoader.ts              # loads + validates /policies/*.json
   clarifications.ts            # compute minimal question set
   explain.ts                   # narrative explanation from rule hits
+  extractionLLM.ts             # LLM extraction logic
+  openaiClient.ts              # OpenAI client wrapper
+  region.ts                    # region mapping utilities
+  categories.ts                # category loading and utilities
+  policyQA.ts                  # LLM-based policy QA
+  audit.ts                     # audit logging utilities
   types.ts                     # shared TS types
 /schemas
   extraction.schema.ts         # zod schema for LLM extraction JSON
@@ -141,19 +167,26 @@ LLM provider via server‑side API (env‑configured, JSON‑only responses)
   policyLint.mjs               # deterministic static lints
   policyEval.mjs               # calls /api/policy-eval or provider directly
   evalTaxiReceipts.ts          # OCR + LLM evaluation harness covering taxi datasets
-  utils/                       # shared script helpers (OCR, ground-truth loader)
-  datasets/                    # taxi_ground_truth.csv and taxi_pdfs fixtures
+  utils/
+    ocr.ts                     # OCR utilities (Tesseract.js + PDF.js)
+    groundTruth.ts             # ground-truth loader and country mapping
+  datasets/
+    taxi_ground_truth.csv      # ground truth data for taxi receipts
+    taxi_pdfs/                 # fixture PDFs for evaluation
 /data
   audit.jsonl                  # append-only demo telemetry
 README.md
 SPEC.md
+AGENTS.md                      # Agent configuration documentation
 ```
 
-## Runtime Guardrails  
+## Runtime Guardrails
 ### Extraction → Clarification → Decision
 
 Extraction (OCR + LLM): Tesseract.js processes uploaded receipts, capturing token‑level text and confidences. The normalized OCR output flows into the LLM, which maps the document onto the Extraction schema and returns field‑level confidence scores alongside the structured JSON. Fields that rarely appear on receipts (e.g., department, expense category, trip purpose) rely on heuristics such as user-profile defaults or vendor templates rather than direct OCR hits; these start with intentionally conservative confidence scores.
-Clarification (deterministic): When either the OCR signal or LLM confidence for a required field drops below threshold—or when a field is absent and only populated via heuristics—surface the ambiguous value and ask the user 1–2 targeted multiple‑choice questions, reusing the low‑confidence words or default guesses as context where helpful. The review page always allows manual edits for non-receipt metadata before submission.
+
+Clarification (evolved approach): **Note:** The initial design proposed asking 1-2 targeted multiple-choice questions in a chat-like interface. This evolved into a more comprehensive approach: the review page presents an editable Expense Reimbursement Form with all extracted fields. Visual indicators (badges, highlights, or notices) flag fields that need human attention—either because confidence scores are below threshold or because the field relies on inference rather than direct OCR. Users can review and edit any field before proceeding, resolving all potential ambiguities in a single form rather than through sequential clarification questions.
+
 Decision (deterministic): Load active rules (by date/region/category), compute approval steps, and render rationale.
 
 ### Confidence Thresholds
@@ -170,15 +203,14 @@ category: start at ≤ 0.70 when inferred from vendor template; require explicit
 
 department|purpose: default to user profile (confidence ≤ 0.60) or remain empty; treat as required manual input if not confirmed.
 
-### Clarification Questions (examples)
+### Clarification Approach (implementation note)
 
-Triggered whenever OCR lacks a direct hit or heuristic confidence stays low; all answers overwrite the inferred value.
+**As Implemented:** Instead of sequential clarification questions, the review form presents all fields simultaneously with visual cues. Low-confidence fields are marked with ConfidenceBadge components and warning notices directing user attention. Editable dropdowns and text inputs allow users to confirm or override any extracted value. This approach reduces friction and allows users to review the entire expense context before making corrections.
 
-Country: “Which country was this ride in?” ['US','Germany','France','UK','Other']
-
-Department: “Which department should we charge this to?” [Engineering, Sales, HR, Other]
-
-Purpose: “Primary purpose?” [Client Meeting, Office Commute, Airport Transfer, Other]
+**Original Design (for reference):** The initial specification proposed targeted multiple-choice questions:
+- Country: "Which country was this ride in?" ['US','Germany','France','UK','Other']
+- Department: "Which department should we charge this to?" [Engineering, Sales, HR, Other]
+- Purpose: "Primary purpose?" [Client Meeting, Office Commute, Airport Transfer, Other]
 
 ### Deterministic Step Ordering
 
@@ -381,28 +413,49 @@ import { z } from "zod";
 export const LineItemSchema = z.object({
   label: z.string().min(1),
   amount: z.number(),
-  currency: z.string().length(3).optional(),
+  currency: z.string().length(3).optional(), // defaults to parent currency if omitted
 });
 
-export const ExtractionSchema = z.object({
+const ExtractionSchemaBase = z.object({
   amount: z.number().positive(),
   currency: z.string().length(3),
   dateISO: z.string().datetime(),
+  // Vendor can be any taxi/ride-hailing provider name as printed
   vendor: z.string().min(1),
-  region: z.enum(["US", "EU", "APAC"]).optional(),
+  country: z
+    .string()
+    .min(1)
+    .describe(
+      "Country where the ride occurred; derive from pickup/dropoff addresses or company metadata."
+    )
+    .optional(),
+  region: z
+    .enum(["US", "EU", "APAC"])
+    .describe(
+      "Expense routing region: US covers North/South America (US, Canada, Mexico, Brazil); EU covers Europe & UK; APAC covers Asia-Pacific hubs."
+    )
+    .optional(),
   pickupCity: z.string().optional(),
+  // Category is business classification, not always on receipt; may be supplied/confirmed by user
   category: z.enum(["ride_hail", "travel", "meals", "software"]).optional(),
-  inferredDepartment: z.enum(["engineering", "sales", "hr", "other"]).optional(),
+  inferredDepartment: z
+    .enum(["engineering", "sales", "hr", "other"])
+    .optional(),
+  // Optional itemization; when present (non-empty), amounts should sum to total (checked in refinement)
   items: z.array(LineItemSchema).optional(),
   confidence: z.object({
     amount: z.number(),
     currency: z.number(),
     dateISO: z.number(),
+    country: z.number().optional(),
     region: z.number().optional(),
+    // Category confidence reflects inference quality (not on receipt)
     category: z.number().optional(),
     inferredDepartment: z.number().optional(),
   }),
 });
+
+export const ExtractionSchema = ExtractionSchemaBase;
 
 export type ExtractionSchemaT = z.infer<typeof ExtractionSchema>;
 ```
@@ -558,15 +611,17 @@ Res
 ## UI Specification
 ### Pages
 
-/home/upload: Drag‑and‑drop, paste text, vendor quick‑select, “Extract” button. Acts as step 1 of the wizard.
+/home/upload: Drag‑and‑drop or paste text receipt input with ArtifactPreview for uploaded files. Vendor quick‑select and "Extract" button trigger OCR + LLM extraction. WizardNav shows step 1 of 3.
 
-/home/review: Editable field cards with ConfidenceBadges; ClarifierChat asks at most 2 questions. Fields not present on the receipt (category, department, purpose) surface as editable chips with low-confidence warnings until the user confirms or replaces them. Wizard step 2.
+/home/review: Editable Expense Reimbursement Form with field editors (FieldEditor, DateTimeEditor, LineItemsEditor) and ConfidenceBadges indicating field reliability. On-screen notices highlight sections requiring human attention due to low confidence scores or inferred values. Fields not present on the receipt (category, department, purpose) appear as editable dropdowns with visual warnings until the user confirms or updates them. ItemizedBreakdown displays line items when present. ClarifierChat component exists for potential future use but the current implementation uses form-based clarification. WizardNav shows step 2 of 3.
 
-/home/decision: ApprovalStepper (chips), RuleHitList (IDs, short names, thresholds), explanation paragraph, “What‑if” toggles (department/purpose). Wizard step 3.
+/home/decision: ApprovalStepper visualizes the approval chain with chip-style steps. RuleHitList displays rule IDs, names, and reasons. Explanation paragraph generated by LLM or deterministic template. WizardNav shows step 3 of 3.
 
-/upload, /review, /decision: Compat routes that redirect into the /home/* wizard.
+/upload, /review, /decision: Legacy compatibility routes that redirect to /home/upload, /home/review, and /home/decision respectively.
 
-/policies: Read‑only viewer of merged policies and currently active ones for a chosen date.
+/policies: Read‑only Policy Explorer with date selector to view active rules for a specific effective date. Displays both all policies and currently active ones.
+
+/admin/policies: Redirects to /policies (legacy route).
 
 ### UX Rules
 
@@ -641,15 +696,15 @@ Copy is English‑only; keep strings in a single strings.ts for easy change.
 
 ## Edge Cases & Error Handling
 
-Ambiguous country: conflicting currency symbol vs location → ask user.
+Ambiguous country: conflicting currency symbol vs location → flag on review form with visual indicator.
 
-Missing currency: ask user; defaulting is not allowed.
+Missing currency: flag as required field; defaulting is not allowed.
 
 Date near boundary: if dateISO = 2024‑10‑01, use inclusive lower bound for v2 and exclusive upper bound for v1 (effective_to is inclusive at 23:59:59Z).
 
-Non‑ride‑hail receipts: allow user to switch category; evaluator adapts.
+Non‑ride‑hail receipts: allow user to switch category via dropdown on review form; evaluator adapts.
 
-LLM failure: fallback UI prompts user to fill fields manually; proceed deterministically.
+LLM failure: fallback UI prompts user to fill fields manually via editable form; proceed deterministically.
 
 ## Acceptance Criteria (Demo)
 
@@ -657,7 +712,7 @@ Upload flow supports paste text and shows receipt preview.
 
 Extraction returns structured JSON passing Extraction schema.
 
-Clarifier asks ≤ 2 questions and resolves low‑confidence fields.
+Review form displays all extracted fields with confidence indicators, flagging ≤ 2 fields requiring attention on typical receipts. **Note:** Evolved from "Clarifier asks ≤ 2 questions" to reflect form-based approach.
 
 Decision shows steps + skipped + rule hits with IDs and a plain explanation.
 
@@ -673,8 +728,15 @@ export type Region = "US" | "EU" | "APAC";
 export type Department = "engineering" | "sales" | "hr" | "other";
 export type Category = "ride_hail" | "travel" | "meals" | "software";
 
+export type LineItem = {
+  label: string;
+  amount: number;
+  currency?: string; // defaults to parent currency
+};
+
 export type Expense = {
   dateISO: string;
+  country?: string;
   region: Region;
   department?: Department;
   category: Category;
@@ -683,7 +745,7 @@ export type Expense = {
 
 export type RuleEffect = {
   always_require_steps?: string[];
-  require_steps_if?: { when: { amount_gt?: Money }, steps: string[] }[];
+  require_steps_if?: { when: { amount_gt?: Money }; steps: string[] }[];
   skip_steps_below?: { step: string; amount: number; currency: string }[];
   category_routes?: Record<string, string[]>;
 };
@@ -699,10 +761,41 @@ export type Rule = {
   comment?: string;
 };
 
+export type RuleHit = { ruleId: string; reason: string };
+
 export type Decision = {
   steps: string[];
   skipped: string[];
-  ruleHits: { ruleId: string; reason: string }[];
+  ruleHits: RuleHit[];
+};
+
+export type ClarificationQuestion =
+  | { id: "region"; type: "single"; prompt: string; options: string[] }
+  | { id: "department"; type: "single"; prompt: string; options: string[] }
+  | { id: "purpose"; type: "single"; prompt: string; options: string[] };
+
+export type ExtractionConfidence = {
+  amount: number;
+  currency: number;
+  dateISO: number;
+  country?: number;
+  region?: number;
+  category?: number;
+  inferredDepartment?: number;
+};
+
+export type Extraction = {
+  amount: number;
+  currency: string;
+  dateISO: string;
+  vendor: string;
+  country?: string;
+  region?: Region;
+  pickupCity?: string;
+  category?: Category;
+  inferredDepartment?: Department;
+  items?: LineItem[];
+  confidence: ExtractionConfidence;
 };
 ```
 
@@ -721,13 +814,17 @@ export function evaluate(expense: Expense, rules: Rule[]): Decision {
 
 ## Appendix C — Clarifications Contract
 ```typescript
+// Already defined in lib/types.ts as ClarificationQuestion
 type Question =
   | { id: "region"; type: "single"; prompt: string; options: string[] }
   | { id: "department"; type: "single"; prompt: string; options: string[] }
   | { id: "purpose"; type: "single"; prompt: string; options: string[] };
 
-export function neededQuestions(x: ExtractionT): Question[] { /* ... */ }
-
+// lib/clarifications.ts
+export function neededQuestions(extraction: Extraction): ClarificationQuestion[] {
+  // Returns at most 2 questions based on confidence thresholds
+  // Prefers region and department if both are below threshold
+}
 ```
 
 ## Appendix D — Example Sequence (EU travel, €42)

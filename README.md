@@ -50,6 +50,8 @@ Some fields like department cannot be derived from a taxi receipt. They will hav
 
 We will make the form editable, which allows re-itemizing the expense as necessary or converting figures to different currencies manually.
 
+**Evolution of Clarification Approach:** The initial design proposed using a conversational interface with 2-3 targeted clarification questions to resolve ambiguous fields. This evolved into a more user-friendly approach: an editable Expense Reimbursement Form presented at the review stage, with on-screen notices and visual indicators (confidence badges, highlights) flagging specific sections that need human attention. This allows users to see the complete context and make corrections in a single comprehensive view rather than answering sequential questions.
+
 
 ## Edge Cases
 
@@ -69,7 +71,7 @@ To handle these cases, we support an editable reimbursement form. The UI also pr
 - Architecture: Next.js App Router (TypeScript), Tailwind, Zod validation.
 - Policies: File‑backed JSON under `policies/` with effective dates and precedence; deterministic evaluator in `lib/evaluate.ts` with fixed step order.
 - APIs: `POST /api/extract`, `POST /api/submit`, `GET /api/policies`, `POST /api/policy-eval`.
-- LLM usage: Structured extraction to schema with confidence thresholds; minimal clarifications; dev‑only policy QA.
+- LLM usage: Structured extraction to schema with confidence thresholds; form-based review with visual indicators for low-confidence fields; dev‑only policy QA.
 - Data & storage: No DB; demo audit log at `data/audit.jsonl`.
 - Scripts: `npm run eval:taxi`, `npm run policy:lint`, `npm run policy:eval`.
 
