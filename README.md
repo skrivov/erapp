@@ -132,8 +132,8 @@ The flow demonstrates the key principle: **LLMs extract and suggest; determinist
 
 ### LLM Usage Philosophy
 The system uses LLMs for extraction and rule development assistance only — never for business decisions:
-- Extraction: Convert unstructured receipts into structured data (via `extraction.schema.ts`).
-- Policy QA for curently active rule: High‑reasoning analysis that flags conflicts, overlaps, and gaps; may include suggested example inputs for future QA. It does not execute tests.
+- Extraction: Convert unstructured receipts into structured data (via `extraction.schema.ts`). Prompts: `lib/extractionLLM.ts`
+- Policy QA for curently active rule: High‑reasoning analysis that flags conflicts, overlaps, and gaps; may include suggested example inputs for future QA. It does not execute tests. Prompts: `lib/policyQA.ts`
 
 Critical: All approval routing decisions are made by deterministic rules in `lib/evaluate.ts`, not by LLMs.
 
@@ -160,3 +160,102 @@ Critical: All approval routing decisions are made by deterministic rules in `lib
 ---
 
 **For complete technical specification, API contracts, type definitions, and detailed flows, see [SPEC.md](SPEC.md).**
+
+## Demo Rules (Policies)
+- `policies/global.v1.json` — Pre‑change baseline: skip `manager` for `ride_hail` under $50 USD (US) and under €50 EUR (EU). Effective until 2024‑09‑30.
+- `policies/global.v2.json` — Post‑change baseline: skip `manager` for `ride_hail` under $75 USD (US) and under €75 EUR (EU). Effective from 2024‑10‑01.
+- `policies/region.us.json` — US overlay: skip `manager` for `ride_hail` under $100 USD (wins by using the largest matching threshold).
+- `policies/region.eu.json` — EU overlay:
+  - Require `compliance` when amount > €50.
+  - Always require `hr` for `travel` category.
+- `policies/region.apac.json` — APAC overlay: category routing examples — `meals` → `manager`, `travel` → `finance`, `software` → `it`.
+
+Notes
+- Finance is always included by default; Manager is included by default unless a skip threshold applies; ordering is `["compliance","hr","it","manager","finance"]`.
+- Skip thresholds only apply when the expense currency matches the threshold currency (no FX conversion in demo).
+
+## Demo Data (Receipts)
+- Location: `scripts/datasets/taxi_pdfs/`
+- Index: `scripts/datasets/taxi_ground_truth.csv` (filename, totals, currency, date, route)
+
+Examples
+- EU synthetic: `synthetic_eu_berlin.pdf`, `synthetic_eu_paris.pdf`, `synthetic_eu_dublin.pdf`
+- US real-world: `Uber1.pdf` … `Uber5.pdf`
+- APAC synthetic: `synthetic_asia_mumbai.pdf`, `synthetic_asia_beijing.pdf`, `synthetic_asia_tokyo.pdf`
+- Americas (non‑USD): `synthetic_ca_toronto.pdf` (CAD), `synthetic_mx_cdmx.pdf` (MXN), `synthetic_br_sp.pdf` (BRL)
+- ZA synthetic: `synthetic_za_cpt.pdf` (ZAR)
+
+## Receipt → Rule Mapping (what fires)
+Below are the expected approval steps based on date, region, category=`ride_hail`, and currency constraints.
+
+- `synthetic_eu_berlin.pdf` — €14.80 on 2024‑05‑11 (EU)
+  - Triggers: Global v1 EU manager skip (<€50)
+  - Steps: [`finance`] (manager skipped)
+
+- `synthetic_eu_paris.pdf` — €18.90 on 2024‑10‑03 (EU)
+  - Triggers: Global v2 EU manager skip (<€75)
+  - Steps: [`finance`] (manager skipped)
+
+- `synthetic_eu_dublin.pdf` — €26.00 on 2025‑02‑09 (EU)
+  - Triggers: Global v2 EU manager skip (<€75)
+  - Steps: [`finance`] (manager skipped)
+
+- `synthetic_us_nyc.pdf` — $50.10 on 2024‑01‑18 (US)
+  - Triggers: US overlay manager skip (<$100); currency matches USD
+  - Steps: [`finance`] (manager skipped)
+
+- `Uber1.pdf` — $7.90 on 2025‑09‑26 (US)
+  - Triggers: US overlay manager skip (<$100)
+  - Steps: [`finance`] (manager skipped)
+
+- `Uber2.pdf` — $8.37 on 2025‑08‑12 (US)
+  - Triggers: US overlay manager skip (<$100)
+  - Steps: [`finance`] (manager skipped)
+
+- `Uber3.pdf` — $33.50 on 2025‑03‑24 (US)
+  - Triggers: US overlay manager skip (<$100)
+  - Steps: [`finance`] (manager skipped)
+
+- `Uber4.pdf` — $41.99 on 2025‑01‑31 (US)
+  - Triggers: US overlay manager skip (<$100)
+  - Steps: [`finance`] (manager skipped)
+
+- `Uber5.pdf` — $29.27 on 2024‑10‑01 (US)
+  - Triggers: US overlay manager skip (<$100); global v2 effective from this date
+  - Steps: [`finance`] (manager skipped)
+
+- `synthetic_ca_toronto.pdf` — C$42.00 on 2025‑04‑28 (Region=US; Currency=CAD)
+  - Triggers: No skip (currency mismatch vs USD thresholds)
+  - Steps: [`manager`, `finance`]
+
+- `synthetic_mx_cdmx.pdf` — MX$160.00 on 2025‑08‑14 (Region=US; Currency=MXN)
+  - Triggers: No skip (currency mismatch vs USD thresholds)
+  - Steps: [`manager`, `finance`]
+
+- `synthetic_br_sp.pdf` — R$62.00 on 2024‑06‑05 (Region=US; Currency=BRL)
+  - Triggers: No skip (currency mismatch vs USD thresholds)
+  - Steps: [`manager`, `finance`]
+
+- `synthetic_asia_mumbai.pdf` — ₹265.00 on 2024‑07‑21 (APAC)
+  - Triggers: No ride_hail skip in APAC; category routes apply only to meals/travel/software
+  - Steps: [`manager`, `finance`]
+
+- `synthetic_asia_beijing.pdf` — CN¥96.00 on 2024‑11‑10 (APAC)
+  - Triggers: No ride_hail skip in APAC
+  - Steps: [`manager`, `finance`]
+
+- `synthetic_asia_tokyo.pdf` — ¥2500.00 on 2025‑03‑15 (APAC)
+  - Triggers: No ride_hail skip in APAC
+  - Steps: [`manager`, `finance`]
+
+- `synthetic_au_sydney.pdf` — A$40.00 on 2024‑12‑02 (APAC)
+  - Triggers: No ride_hail skip in APAC
+  - Steps: [`manager`, `finance`]
+
+- `synthetic_za_cpt.pdf` — R270.00 on 2025‑09‑09 (APAC by demo mapping)
+  - Triggers: No ride_hail skip in APAC
+  - Steps: [`manager`, `finance`]
+
+EU compliance/HR notes
+- None of the EU examples exceed €50, so `compliance` is not added.
+- HR is only added for EU `travel` category; all examples here are `ride_hail`.
