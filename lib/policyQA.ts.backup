@@ -1,9 +1,13 @@
+import { promises as fs } from "fs";
+import path from "path";
 import { evaluate } from "./evaluate";
-import { getActiveRules } from "./policyLoader";
+import { getActiveRules, loadPolicies } from "./policyLoader";
 import { Expense, Rule } from "./types";
 import { PolicyEvalSchema } from "../schemas/policyEval.schema";
 import type { PolicyEvalSchemaT } from "../schemas/policyEval.schema";
-import { getOpenAIClient, getModelForUseCase } from "./openaiClient";
+import { getOpenAIClient, getPolicyEvalModel } from "./openaiClient";
+
+const REPORT_PATH = path.join(process.cwd(), "data", "policy_report.md");
 
 export type PolicyEvalConflict = { rules: string[]; description: string };
 
@@ -13,24 +17,12 @@ export type SuggestedTest = {
   expected_steps?: string[];
 };
 
-export type TestResult = {
-  name: string;
-  expected?: string[];
-  actual: string[];
-  passed: boolean;
-};
-
 export type PolicyQAResult = {
   warnings: string[];
   conflicts: PolicyEvalConflict[];
   gaps: string[];
   suggested_tests: SuggestedTest[];
-  test_results: TestResult[];
-  summary: {
-    total_tests: number;
-    passed: number;
-    failed: number;
-  };
+  reportPath: string;
 };
 
 const policyEvalJsonSchema = {
@@ -99,12 +91,9 @@ const policyEvalJsonSchema = {
   },
 } as const;
 
-async function callPolicyEvalLLM(
-  policies: Rule[],
-  modelOverride?: string
-): Promise<PolicyEvalSchemaT> {
+async function callPolicyEvalLLM(policies: Rule[]): Promise<PolicyEvalSchemaT> {
   const client = getOpenAIClient();
-  const model = getModelForUseCase("policy-eval", modelOverride);
+  const model = getPolicyEvalModel();
 
   const policyJson = JSON.stringify(policies, null, 2);
   const systemPrompt = `You are a finance policy QA reviewer. Analyse file-backed expense approval rules defined in a deterministic engine.
@@ -229,34 +218,14 @@ function suggestedTests(): SuggestedTest[] {
   ];
 }
 
-function arraysEqual(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((val, idx) => val === sortedB[idx]);
-}
-
-/**
- * Run policy QA analysis on provided policies
- * @param policies - Array of policy rules to analyze
- * @param options - Optional configuration
- * @param options.useLLM - Whether to use LLM for analysis (default: true)
- * @param options.modelOverride - Override the default model for LLM analysis
- * @returns PolicyQAResult with warnings, conflicts, gaps, and test results
- */
-export async function runPolicyQA(
-  policies: Rule[],
-  options: { useLLM?: boolean; modelOverride?: string } = {}
-): Promise<PolicyQAResult> {
-  const { useLLM = true, modelOverride } = options;
+export async function runPolicyQA(): Promise<PolicyQAResult> {
+  const policies = await loadPolicies();
 
   let llmResult: PolicyEvalSchemaT | null = null;
-  if (useLLM) {
-    try {
-      llmResult = await callPolicyEvalLLM(policies, modelOverride);
-    } catch (error) {
-      console.error("Policy QA LLM call failed", error);
-    }
+  try {
+    llmResult = await callPolicyEvalLLM(policies);
+  } catch (error) {
+    console.error("Policy QA LLM call failed", error);
   }
 
   const deterministicConflicts = collectOverlaps(policies);
@@ -281,36 +250,44 @@ export async function runPolicyQA(
 
   const combinedTests = Array.from(combinedTestsMap.values());
 
-  const testResults: TestResult[] = [];
+  const results = [] as {
+    name: string;
+    expected?: string[];
+    actual: string[];
+  }[];
 
   for (const test of combinedTests) {
     const { active } = await getActiveRules(test.expense.dateISO);
     const decision = evaluate(test.expense, active);
-    const passed = test.expected_steps
-      ? arraysEqual(decision.steps, test.expected_steps)
-      : true;
-
-    testResults.push({
-      name: test.name,
-      expected: test.expected_steps,
-      actual: decision.steps,
-      passed,
-    });
+    results.push({ name: test.name, expected: test.expected_steps, actual: decision.steps });
   }
 
-  const passedCount = testResults.filter((r) => r.passed).length;
-  const failedCount = testResults.length - passedCount;
+  const reportLines: string[] = [
+    "# Policy QA Report",
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "## Conflicts",
+    conflicts.length
+      ? conflicts
+          .map((conflict) => `- ${conflict.description}: ${conflict.rules.join(", ")}`)
+          .join("\n")
+      : "- None",
+    "",
+    "## Suggested Tests",
+    ...results.map((result) => {
+      const expected = result.expected ? ` expected ${result.expected.join(", ")}` : "";
+      return `- ${result.name}: actual ${result.actual.join(", ")}${expected}`;
+    }),
+  ];
+
+  await fs.writeFile(REPORT_PATH, `${reportLines.join("\n")}\n`, "utf8");
 
   return {
     warnings,
     conflicts,
     gaps,
     suggested_tests: combinedTests,
-    test_results: testResults,
-    summary: {
-      total_tests: testResults.length,
-      passed: passedCount,
-      failed: failedCount,
-    },
+    reportPath: "/data/policy_report.md",
   };
 }

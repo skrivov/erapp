@@ -157,14 +157,14 @@ tsx for running TypeScript scripts directly
     /upload/page.tsx           # Compat redirect to /home/upload
     /review/page.tsx           # Compat redirect to /home/review
     /decision/page.tsx         # Compat redirect to /home/decision
-    /policies/page.tsx         # Read-only policy browser + rule hit viewer
-    /admin/policies/page.tsx   # Redirects to /policies
+    /policies/page.tsx         # Policy Explorer: Active/Inactive/All view with LLM analysis
+    /policies/policies-client.tsx # Client component with view selector and analysis UI
   /api
     receipts/route.ts          # (optional) upload stub; for demo supports text
     extract/route.ts           # calls LLM to extract fields + confidences
     submit/route.ts            # deterministic evaluation + audit write
     policies/route.ts          # returns merged policies (read-only)
-    policy-eval/route.ts       # dev-only LLM QA endpoint (guarded by env)
+    policy-eval/route.ts       # accepts policies array, returns LLM analysis with tests
 /components
   ArtifactPreview.tsx          # Preview for uploaded receipts (OCR/PDF)
   ReceiptPreview.tsx           # Receipt display component
@@ -630,18 +630,25 @@ Res (200)
 
 Res: Merged active rules (read‑only).
 
-### POST /api/policy-eval (dev only)
+### POST /api/policy-eval
 
-Req: none
-Res
-
+Req
 ```jsonc
 {
-  "warnings": [],
-  "conflicts": [],
-  "gaps": [],
-  "suggested_tests": [ /* ... */ ],
-  "reportPath": "/data/policy_report.md"
+  "policies": [ /* array of Rule objects */ ],
+  "modelOverride": "o1-preview"  // optional: override default gpt-4o
+}
+```
+
+Res
+```jsonc
+{
+  "warnings": ["Resolve overlapping rule ranges"],
+  "conflicts": [{"rules": ["rule-1", "rule-2"], "description": "..."}],
+  "gaps": ["No rules for APAC software category"],
+  "suggested_tests": [ /* SuggestedTest objects */ ],
+  "test_results": [ /* TestResult objects with passed boolean */ ],
+  "summary": { "total_tests": 5, "passed": 4, "failed": 1 }
 }
 ```
 
@@ -656,9 +663,7 @@ Res
 
 /upload, /review, /decision: Legacy compatibility routes that redirect to /home/upload, /home/review, and /home/decision respectively.
 
-/policies: Read‑only Policy Explorer with date selector to view active rules for a specific effective date. Displays both all policies and currently active ones.
-
-/admin/policies: Redirects to /policies (legacy route).
+/policies: Policy Explorer with date selector and view mode selector (Active/Inactive/All). Includes "LLM Analysis" button that sends active policies to `/api/policy-eval` and displays comprehensive results: summary stats, warnings, conflicts, gaps, and test results with pass/fail indicators. Results can be dismissed.
 
 ### UX Rules
 

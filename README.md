@@ -118,15 +118,17 @@ The flow demonstrates the key principle: **LLMs extract and suggest; determinist
 - **Storage**: File-backed JSON rules in `policies/` directory
 - **Versioning**: Effective date ranges (`effective_from`, `effective_to`) enable temporal rule changes
 - **Evaluation**: Deterministic rule engine in `lib/evaluate.ts` with fixed approval step ordering
+- **Policy Explorer**: `/policies` page with view modes (Active/Inactive/All) and on-demand LLM analysis
 - **Quality Assurance**:
   - `npm run policy:lint` - Static validation of policy JSON structure
-  - `npm run policy:eval` - LLM-based conflict and gap detection
+  - `npm run policy:eval` - Standalone policy evaluation script
+  - `/api/policy-eval` - On-demand LLM-powered policy gap analysis with configurable models
 
 ### API Endpoints
 - **`POST /api/extract`** - Accepts receipt image/text, returns structured extraction with confidence scores
 - **`POST /api/submit`** - Evaluates expense against active rules, returns approval chain + audit entry
 - **`GET /api/policies`** - Returns merged active policies for a given date (read-only)
-- **`POST /api/policy-eval`** - Development-only endpoint for LLM policy quality analysis
+- **`POST /api/policy-eval`** - Accepts `{policies, modelOverride?}`, returns analysis with conflicts, gaps, and test results
 
 ### LLM Usage Philosophy
 The system uses LLMs for **extraction and assistance only**, never for business decisions:
