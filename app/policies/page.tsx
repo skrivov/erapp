@@ -5,7 +5,8 @@ import { PoliciesClient } from "./policies-client";
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
+  // Next.js dynamic APIs: searchParams is async in newer versions
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function formatDate(value: string) {
@@ -13,7 +14,8 @@ function formatDate(value: string) {
 }
 
 export default async function PoliciesPage({ searchParams }: PageProps) {
-  const requestedDate = typeof searchParams?.date === "string" ? searchParams.date : new Date().toISOString();
+  const params = (await searchParams) ?? {};
+  const requestedDate = typeof params.date === "string" ? params.date : new Date().toISOString();
   const { active } = await getActiveRules(requestedDate);
   const all = await loadPolicies();
   const categories = await loadCategories();

@@ -1,9 +1,7 @@
-import { evaluate } from "./evaluate";
-import { getActiveRules } from "./policyLoader";
 import { Expense, Rule } from "./types";
 import { PolicyEvalSchema } from "../schemas/policyEval.schema";
 import type { PolicyEvalSchemaT } from "../schemas/policyEval.schema";
-import { getOpenAIClient, getModelForUseCase } from "./openaiClient";
+import { callPolicyEvalLLM } from "./openaiClient";
 
 export type PolicyEvalConflict = { rules: string[]; description: string };
 
@@ -62,10 +60,6 @@ const policyEvalJsonSchema = {
           required: ["name", "expense"],
           properties: {
             name: { type: "string" },
-            expected_steps: {
-              type: "array",
-              items: { type: "string" },
-            },
             expense: {
               type: "object",
               additionalProperties: false,
@@ -73,10 +67,6 @@ const policyEvalJsonSchema = {
               properties: {
                 dateISO: { type: "string" },
                 region: { type: "string", enum: ["US", "EU", "APAC"] },
-                department: {
-                  type: "string",
-                  enum: ["engineering", "sales", "hr", "other"],
-                },
                 category: {
                   type: "string",
                   enum: ["ride_hail", "travel", "meals", "software"],
@@ -99,149 +89,71 @@ const policyEvalJsonSchema = {
   },
 } as const;
 
-async function callPolicyEvalLLM(
+/**
+ * Ask LLM to analyze policy rules and suggest tests
+ */
+async function analyzePoliciesWithLLM(
   policies: Rule[],
   modelOverride?: string
 ): Promise<PolicyEvalSchemaT> {
-  const client = getOpenAIClient();
-  const model = getModelForUseCase("policy-eval", modelOverride);
-
   const policyJson = JSON.stringify(policies, null, 2);
-  const systemPrompt = `You are a finance policy QA reviewer. Analyse file-backed expense approval rules defined in a deterministic engine.
-- Identify overlaps, conflicts, or missing cases using the provided DSL summary.
-- Suggest edge-case tests that exercise date boundaries and regional overrides.
-- Only respond with JSON matching the supplied schema.
-- Keep warnings short and actionable.`;
+  const systemPrompt = `You are a high‑reasoning Policy QA analyst.
+Your job: read an array of expense policy rules (our DSL), reason about how our deterministic evaluator would fire them, and produce a concise report of potential issues in rule firing.
 
-  const userPrompt = `Policy DSL summary:
-Selectors: region (US|EU|APAC), department (engineering|sales|hr|other), category (ride_hail|travel|meals|software).
-Effects: always_require_steps, require_steps_if (amount_gt), skip_steps_below, category_routes.
-Priority: lower number means higher precedence. Later rules can be more specific overrides. effective_from/to set active range.
+Focus on:
+- Overlaps/contradictions (e.g., conflicting skip vs require thresholds, competing priorities)
+- Effective date overlaps or unreachable rules
+- Selector/currency mismatches that prevent intended firing
+- Ambiguous or missing coverage across regions/categories/departments
+- Step routing risks (missing mandatory finance, unintentionally skipped manager, etc.)
 
-Policies JSON:
+Do NOT simulate real approvals; do NOT fabricate decisions. Provide an issue report only.
+Output must be valid JSON matching the provided JSON Schema. Keep items short and actionable.`;
+
+  const userPrompt = `INPUT
+You will receive only the policies array (no tests will be executed). Use deep reasoning to assess potential issues in how these rules might fire.
+
+Evaluator semantics (deterministic):
+- Activate rules where effective_from ≤ date ≤ effective_to? and all non‑empty selectors match exactly.
+- Sort by priority ASC; more specific rules do not automatically override, but require vs skip precedence applies: required steps dominate skip thresholds.
+- Base chain includes finance by default and manager by default; category_routes and always_require_steps add steps; skip_steps_below can remove a step unless it is required.
+- Currency checks are exact; thresholds only apply when expense currency equals the threshold’s currency.
+- If multiple skip thresholds exist for a step, use the largest matching threshold.
+- Final ordering: ["compliance","hr","it","manager","finance"].
+
+What to return:
+- warnings: free‑text issue notes (ambiguous language, unexpected defaults, potential maintenance risks).
+- conflicts: specific pairs/groups of rules that could conflict at runtime (rule ids + brief description).
+- gaps: areas not covered by any rule (regions/categories/departments/date windows).
+- suggested_tests: Optional illustrative examples to clarify edge cases for future QA. If included, omit expected_steps unless you are certain.
+
+Example shape for a suggested test (illustrative only):
+{ "name": "Edge: EU ride_hail 75€", "expense": { "dateISO": "2025-01-01T00:00:00Z", "region": "EU", "category": "ride_hail", "total": { "amount": 75, "currency": "EUR" } } }
+
+Return JSON only that conforms to the provided JSON schema. Do not include commentary outside JSON.
+
+Policies JSON to analyze:
 ${policyJson}`;
 
-  const response = await client.responses.create({
-    model,
-    temperature: 0,
-    text: {
-      format: {
-        type: "json_schema",
-        name: policyEvalJsonSchema.name,
-        schema: policyEvalJsonSchema.schema,
-      },
-    },
-    input: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
+  const jsonPayload = await callPolicyEvalLLM({
+    schema: policyEvalJsonSchema,
+    systemPrompt,
+    userPrompt,
+    modelOverride,
   });
-
-  type ResponsePayload = {
-    output?: Array<{
-      content?: Array<{
-        text?: { value?: string };
-      }>;
-    }>;
-    output_text?: string | null;
-  };
-
-  const responsePayload = response as ResponsePayload;
-  const fallbackOutput = responsePayload.output?.[0]?.content?.[0]?.text?.value ?? null;
-  const jsonPayload = responsePayload.output_text ?? fallbackOutput;
-  if (!jsonPayload) {
-    throw new Error("OpenAI policy eval returned no JSON output");
-  }
 
   const parsed = JSON.parse(jsonPayload);
   return PolicyEvalSchema.parse(parsed);
 }
 
-function rangesOverlap(aStart: Date, aEnd: Date | null, bStart: Date, bEnd: Date | null) {
-  const aEndVal = aEnd ? aEnd.getTime() : Number.POSITIVE_INFINITY;
-  const bEndVal = bEnd ? bEnd.getTime() : Number.POSITIVE_INFINITY;
-  return aStart.getTime() <= bEndVal && bStart.getTime() <= aEndVal;
-}
-
-function selectorsKey(rule: Rule) {
-  return JSON.stringify(rule.selectors ?? {});
-}
-
-function collectOverlaps(rules: Rule[]) {
-  const conflicts: PolicyEvalConflict[] = [];
-  for (let i = 0; i < rules.length; i += 1) {
-    for (let j = i + 1; j < rules.length; j += 1) {
-      const a = rules[i];
-      const b = rules[j];
-      if (selectorsKey(a) !== selectorsKey(b)) {
-        continue;
-      }
-      const aStart = new Date(a.effective_from);
-      const bStart = new Date(b.effective_from);
-      const aEnd = a.effective_to ? new Date(a.effective_to) : null;
-      const bEnd = b.effective_to ? new Date(b.effective_to) : null;
-      if (rangesOverlap(aStart, aEnd, bStart, bEnd)) {
-        conflicts.push({
-          rules: [a.id, b.id],
-          description: "Overlapping effective range for identical selectors",
-        });
-      }
-    }
-  }
-  return conflicts;
-}
-
-function suggestedTests(): SuggestedTest[] {
-  return [
-    {
-      name: "US ride_hail 2024-09-15 should skip manager",
-      expense: {
-        dateISO: "2024-09-15T12:00:00.000Z",
-        region: "US",
-        department: "engineering",
-        category: "ride_hail",
-        total: { amount: 49, currency: "USD" },
-      },
-      expected_steps: ["finance"],
-    },
-    {
-      name: "US ride_hail 2024-10-10 should skip manager",
-      expense: {
-        dateISO: "2024-10-10T12:00:00.000Z",
-        region: "US",
-        department: "sales",
-        category: "ride_hail",
-        total: { amount: 74, currency: "USD" },
-      },
-      expected_steps: ["finance"],
-    },
-    {
-      name: "EU ride_hail €60 should add compliance",
-      expense: {
-        dateISO: "2025-01-10T12:00:00.000Z",
-        region: "EU",
-        department: "engineering",
-        category: "ride_hail",
-        total: { amount: 60, currency: "EUR" },
-      },
-      expected_steps: ["compliance", "finance"],
-    },
-  ];
-}
-
-function arraysEqual(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((val, idx) => val === sortedB[idx]);
-}
+// Deterministic evaluator intentionally not used here; this module focuses solely on LLM QA.
 
 /**
- * Run policy QA analysis on provided policies
- * @param policies - Array of policy rules to analyze
+ * Run policy QA analysis using LLM to analyze rules and suggest tests
+ * @param policies - Active policy rules from the policy page
  * @param options - Optional configuration
  * @param options.useLLM - Whether to use LLM for analysis (default: true)
- * @param options.modelOverride - Override the default model for LLM analysis
+ * @param options.modelOverride - Override the default model
  * @returns PolicyQAResult with warnings, conflicts, gaps, and test results
  */
 export async function runPolicyQA(
@@ -250,67 +162,30 @@ export async function runPolicyQA(
 ): Promise<PolicyQAResult> {
   const { useLLM = true, modelOverride } = options;
 
-  let llmResult: PolicyEvalSchemaT | null = null;
-  if (useLLM) {
-    try {
-      llmResult = await callPolicyEvalLLM(policies, modelOverride);
-    } catch (error) {
-      console.error("Policy QA LLM call failed", error);
-    }
+  if (!useLLM) {
+    return {
+      warnings: [],
+      conflicts: [],
+      gaps: [],
+      suggested_tests: [],
+      test_results: [],
+      summary: { total_tests: 0, passed: 0, failed: 0 },
+    };
   }
 
-  const deterministicConflicts = collectOverlaps(policies);
-  const deterministicWarnings = deterministicConflicts.length
-    ? ["Resolve overlapping rule ranges"]
-    : [];
-
-  const warnings = Array.from(
-    new Set([...(llmResult?.warnings ?? []), ...deterministicWarnings])
-  );
-
-  const conflicts = [...(llmResult?.conflicts ?? []), ...deterministicConflicts];
-  const gaps = llmResult?.gaps ?? [];
-
-  const baselineTests = suggestedTests();
-  const llmTests = llmResult?.suggested_tests ?? [];
-  const combinedTestsMap = new Map<string, SuggestedTest>();
-
-  for (const test of [...baselineTests, ...llmTests]) {
-    combinedTestsMap.set(test.name, test);
-  }
-
-  const combinedTests = Array.from(combinedTestsMap.values());
-
-  const testResults: TestResult[] = [];
-
-  for (const test of combinedTests) {
-    const { active } = await getActiveRules(test.expense.dateISO);
-    const decision = evaluate(test.expense, active);
-    const passed = test.expected_steps
-      ? arraysEqual(decision.steps, test.expected_steps)
-      : true;
-
-    testResults.push({
-      name: test.name,
-      expected: test.expected_steps,
-      actual: decision.steps,
-      passed,
-    });
-  }
-
-  const passedCount = testResults.filter((r) => r.passed).length;
-  const failedCount = testResults.length - passedCount;
+  // Ask LLM to analyze policies
+  const llmResult = await analyzePoliciesWithLLM(policies, modelOverride);
 
   return {
-    warnings,
-    conflicts,
-    gaps,
-    suggested_tests: combinedTests,
-    test_results: testResults,
+    warnings: llmResult.warnings,
+    conflicts: llmResult.conflicts,
+    gaps: llmResult.gaps,
+    suggested_tests: llmResult.suggested_tests,
+    test_results: [],
     summary: {
-      total_tests: testResults.length,
-      passed: passedCount,
-      failed: failedCount,
+      total_tests: 0,
+      passed: 0,
+      failed: 0,
     },
   };
 }

@@ -1,6 +1,6 @@
 import { ExtractionSchema } from "../schemas/extraction.schema";
 import type { ExtractionSchemaT } from "../schemas/extraction.schema";
-import { getOpenAIClient, getExtractionModel } from "./openaiClient";
+import { callExtractionLLM } from "./openaiClient";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 type JsonSchemaNode = {
@@ -73,46 +73,11 @@ const systemPrompt = `You are a structured data extractor for taxi/ride-hailing 
 // - If you include items, the sum of item amounts must equal the total amount exactly (within 0.01).
 
 export async function runExtractionLLM(receiptText: string): Promise<ExtractionSchemaT> {
-  const client = getOpenAIClient();
-  const model = getExtractionModel();
-
-  const response = await client.responses.create({
-    model,
-    temperature: 0,
-    text: {
-      format: {
-        type: "json_schema",
-        name: extractionJsonSchema.name,
-        schema: extractionJsonSchema.schema,
-      },
-    },
-    input: [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      {
-        role: "user",
-        content: `Receipt content:\n${receiptText}`,
-      },
-    ],
+  const jsonPayload = await callExtractionLLM({
+    schema: extractionJsonSchema,
+    systemPrompt,
+    userPrompt: `Receipt content:\n${receiptText}`,
   });
-
-  type ResponsePayload = {
-    output?: Array<{
-      content?: Array<{
-        text?: { value?: string };
-      }>;
-    }>;
-    output_text?: string | null;
-  };
-
-  const responsePayload = response as ResponsePayload;
-  const fallbackOutput = responsePayload.output?.[0]?.content?.[0]?.text?.value ?? null;
-  const jsonPayload = responsePayload.output_text ?? fallbackOutput;
-  if (!jsonPayload) {
-    throw new Error("OpenAI response did not include JSON output");
-  }
 
   const parsed = JSON.parse(jsonPayload);
   const validated = ExtractionSchema.parse(parsed);

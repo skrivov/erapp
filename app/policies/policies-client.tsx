@@ -111,21 +111,7 @@ export function PoliciesClient({ allPolicies, activePolicies, requestedDate }: P
             </button>
           </div>
 
-          {/* Summary */}
-          <div className="mt-3 grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <dt className="text-xs uppercase text-indigo-700">Tests Run</dt>
-              <dd className="text-xl font-bold text-indigo-900">{qaResult.summary.total_tests}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase text-indigo-700">Passed</dt>
-              <dd className="text-xl font-bold text-green-700">{qaResult.summary.passed}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase text-indigo-700">Failed</dt>
-              <dd className="text-xl font-bold text-red-700">{qaResult.summary.failed}</dd>
-            </div>
-          </div>
+          {/* (Removed tests summary: Tests Run / Passed / Failed) */}
 
           {/* Warnings */}
           {qaResult.warnings.length > 0 && (

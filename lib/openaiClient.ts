@@ -31,7 +31,7 @@ export function getExtractionModel(): string {
  * Defaults to gpt-4o for better reasoning capabilities
  */
 export function getPolicyEvalModel(): string {
-  return process.env.OPENAI_POLICY_EVAL_MODEL ?? "gpt-4o";
+  return process.env.OPENAI_POLICY_EVAL_MODEL ?? "gpt-5";
 }
 
 /**
@@ -47,4 +47,84 @@ export function getModelForUseCase(
     return override;
   }
   return useCase === "extraction" ? getExtractionModel() : getPolicyEvalModel();
+}
+
+// Common response extraction helper for OpenAI Responses API
+export function extractStructuredOutput(response: unknown): string {
+  type ResponsePayload = {
+    output?: Array<{
+      content?: Array<{
+        text?: { value?: string };
+      }>;
+    }>;
+    output_text?: string | null;
+  };
+  const payload = response as ResponsePayload;
+  const fallback = payload.output?.[0]?.content?.[0]?.text?.value ?? null;
+  const json = payload.output_text ?? fallback;
+  if (!json) {
+    throw new Error("OpenAI response did not include JSON output");
+  }
+  return json;
+}
+
+type JsonSchemaEnvelope = { name: string; schema: Record<string, unknown> };
+
+/**
+ * Create a JSON-schema formatted response using the policy-eval model.
+ * Notes: high-reasoning models (gpt-5) do not accept temperature.
+ */
+export async function callPolicyEvalLLM(opts: {
+  schema: JsonSchemaEnvelope;
+  systemPrompt: string;
+  userPrompt: string;
+  modelOverride?: string;
+}): Promise<string> {
+  const client = getOpenAIClient();
+  const model = getModelForUseCase("policy-eval", opts.modelOverride);
+  const response = await client.responses.create({
+    model,
+    text: {
+      format: {
+        type: "json_schema",
+        name: opts.schema.name,
+        schema: opts.schema.schema,
+      },
+    },
+    input: [
+      { role: "system", content: opts.systemPrompt },
+      { role: "user", content: opts.userPrompt },
+    ],
+  });
+  return extractStructuredOutput(response);
+}
+
+/**
+ * Create a JSON-schema formatted response using the extraction model.
+ * Extraction models accept temperature; we pin to 0 for determinism.
+ */
+export async function callExtractionLLM(opts: {
+  schema: JsonSchemaEnvelope;
+  systemPrompt: string;
+  userPrompt: string;
+  modelOverride?: string;
+}): Promise<string> {
+  const client = getOpenAIClient();
+  const model = getModelForUseCase("extraction", opts.modelOverride);
+  const response = await client.responses.create({
+    model,
+    temperature: 0,
+    text: {
+      format: {
+        type: "json_schema",
+        name: opts.schema.name,
+        schema: opts.schema.schema,
+      },
+    },
+    input: [
+      { role: "system", content: opts.systemPrompt },
+      { role: "user", content: opts.userPrompt },
+    ],
+  });
+  return extractStructuredOutput(response);
 }

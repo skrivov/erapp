@@ -118,7 +118,7 @@ graph LR
   ├─ /api/extract  ──► LLM (structured JSON)
   ├─ /api/submit   ──► Deterministic Rule Evaluator ──► Decision (chain + rationale)
   ├─ /api/policies (read file-backed JSON)
-  └─ /api/policy-eval (LLM QA: conflicts, gaps, suggested tests)
+  └─ /api/policy-eval (LLM QA: warnings, conflicts, gaps, optional suggested tests)
             │
        [/policies/*.json] (rules as data)
             │
@@ -164,7 +164,7 @@ tsx for running TypeScript scripts directly
     extract/route.ts           # calls LLM to extract fields + confidences
     submit/route.ts            # deterministic evaluation + audit write
     policies/route.ts          # returns merged policies (read-only)
-    policy-eval/route.ts       # accepts policies array, returns LLM analysis with tests
+    policy-eval/route.ts       # accepts policies array, returns LLM analysis (no test execution)
 /components
   ArtifactPreview.tsx          # Preview for uploaded receipts (OCR/PDF)
   ReceiptPreview.tsx           # Receipt display component
@@ -524,7 +524,7 @@ Given the deterministic decision and rule hits, the LLM may render a one‑parag
 
 Pre‑merge QA to catch conflicts, overlaps, unreachable rules, and gaps.
 
-Generate adversarial tests (e.g., edge dates, boundary amounts).
+Optionally propose adversarial example inputs (e.g., edge dates, boundary amounts) to guide future QA, but do not execute tests.
 
 ### Input to LLM
 
@@ -552,22 +552,15 @@ const PolicyEval = z.object({
       category: z.enum(["ride_hail","travel","meals","software"]),
       total: z.object({ amount: z.number(), currency: z.string() })
     }),
+    // expected_steps optional; usually omitted since no tests run
     expected_steps: z.array(z.string()).optional()
   }))
 });
 ```
 
-### Deterministic Follow‑Up
+### Output Handling (no test execution)
 
-Run suggested_tests through /lib/evaluate.ts.
-
-Produce /data/policy_report.md with:
-
-Conflicts & gaps list
-
-Table of suggested tests vs actual results
-
-Diff where expected_steps provided
+The analysis is presented in the UI and/or logs as warnings, conflicts, gaps, and optional suggested_tests examples. The demo does not execute suggested tests or diff expected results.
 
 ### Static Lints (in addition to LLM)
 
@@ -636,7 +629,7 @@ Req
 ```jsonc
 {
   "policies": [ /* array of Rule objects */ ],
-  "modelOverride": "o1-preview"  // optional: override default gpt-4o
+  "modelOverride": "gpt-5"  // optional: override default (gpt-5)
 }
 ```
 
@@ -646,9 +639,9 @@ Res
   "warnings": ["Resolve overlapping rule ranges"],
   "conflicts": [{"rules": ["rule-1", "rule-2"], "description": "..."}],
   "gaps": ["No rules for APAC software category"],
-  "suggested_tests": [ /* SuggestedTest objects */ ],
-  "test_results": [ /* TestResult objects with passed boolean */ ],
-  "summary": { "total_tests": 5, "passed": 4, "failed": 1 }
+  "suggested_tests": [ /* optional illustrative examples only */ ],
+  "test_results": [],
+  "summary": { "total_tests": 0, "passed": 0, "failed": 0 }
 }
 ```
 
@@ -663,7 +656,7 @@ Res
 
 /upload, /review, /decision: Legacy compatibility routes that redirect to /home/upload, /home/review, and /home/decision respectively.
 
-/policies: Policy Explorer with date selector and view mode selector (Active/Inactive/All). Includes "LLM Analysis" button that sends active policies to `/api/policy-eval` and displays comprehensive results: summary stats, warnings, conflicts, gaps, and test results with pass/fail indicators. Results can be dismissed.
+/policies: Policy Explorer with date selector and view mode selector (Active/Inactive/All). Includes "LLM Analysis" button that sends active policies to `/api/policy-eval` and displays results: warnings, conflicts, gaps, and any suggested test examples. No pass/fail test summary is shown. Results can be dismissed.
 
 ### UX Rules
 
@@ -701,7 +694,7 @@ Note: On serverless hosts, local writes are ephemeral; acceptable for demo. For 
 ### Manual Checks
 
 - UI smoke pass: upload representative taxi PDFs, confirm clarifications and approval chain.
-- Policy QA: `npm run policy:eval` invokes the LLM-backed critique and suggested tests.
+- Policy QA: `npm run policy:eval` invokes the LLM-backed critique (no deterministic test execution).
 
 ## Build & Dev Scripts (spec)
 
@@ -758,7 +751,7 @@ Review form displays all extracted fields with confidence indicators, flagging �
 
 Decision shows steps + skipped + rule hits with IDs and a plain explanation.
 
-Policy QA script produces a policy_report.md with at least one non‑trivial suggested test.
+Policy QA script produces a policy_report.md with identified issues; suggested examples may be included for reference.
 
 ## Appendix A — TypeScript Types (shared)
 

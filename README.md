@@ -128,16 +128,14 @@ The flow demonstrates the key principle: **LLMs extract and suggest; determinist
 - **`POST /api/extract`** - Accepts receipt image/text, returns structured extraction with confidence scores
 - **`POST /api/submit`** - Evaluates expense against active rules, returns approval chain + audit entry
 - **`GET /api/policies`** - Returns merged active policies for a given date (read-only)
-- **`POST /api/policy-eval`** - Accepts `{policies, modelOverride?}`, returns analysis with conflicts, gaps, and test results
+- **`POST /api/policy-eval`** - Accepts `{policies, modelOverride?}`, returns analysis with warnings, conflicts, gaps, and optional illustrative suggested tests (no deterministic test execution)
 
 ### LLM Usage Philosophy
-The system uses LLMs for **extraction and assistance only**, never for business decisions:
-- **Extraction**: Convert unstructured receipts into structured data (via `extraction.schema.ts`)
-- **Confidence Scoring**: Per-field confidence to guide user attention
-- **Explanations**: Generate human-readable rationale for decisions (post-evaluation)
-- **Policy QA** (dev-only): Suggest test cases and identify rule conflicts
+The system uses LLMs for extraction and developer assistance only — never for business decisions:
+- Extraction: Convert unstructured receipts into structured data (via `extraction.schema.ts`).
+- Policy QA for curently active rule: High‑reasoning analysis that flags conflicts, overlaps, and gaps; may include suggested example inputs for future QA. It does not execute tests.
 
-**Critical**: All approval routing decisions are made by deterministic rules in `lib/evaluate.ts`, not by LLMs.
+Critical: All approval routing decisions are made by deterministic rules in `lib/evaluate.ts`, not by LLMs.
 
 ### Data & Storage
 - **No Database**: Demo application uses file-based storage only
@@ -147,7 +145,7 @@ The system uses LLMs for **extraction and assistance only**, never for business 
 ### Evaluation Scripts
 - **`npm run eval:taxi`** - Runs end-to-end evaluation on taxi receipt fixtures with ground truth comparison
 - **`npm run policy:lint`** - Validates policy JSON syntax, date ranges, and selector consistency
-- **`npm run policy:eval`** - Generates policy quality report with LLM-detected issues
+- **`npm run policy:eval`** - Generates a policy quality report with LLM‑detected issues (no deterministic test execution)
 
 ### Key Files & Modules
 | Path | Purpose |
