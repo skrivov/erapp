@@ -70,20 +70,36 @@ To handle these cases, we support an editable reimbursement form. The UI also pr
 
 ```mermaid
 graph LR
-    A[Upload Receipt<br/>PDF/Image/Text] --> B[OCR Processing<br/>Tesseract.js]
-    B --> C[LLM Extraction<br/>OpenAI API]
-    C --> D[Structured Data<br/>+ Confidence Scores]
-    D --> E[Expense Reimbursement<br/>Form Review]
-    E --> F{Low Confidence<br/>Fields?}
-    F -->|Yes| G[Visual Indicators<br/>User Edits]
-    F -->|No| H[User Confirms]
-    G --> H
-    H --> I[Rule Evaluation<br/>lib/evaluate.ts]
-    I --> J[Filter Active Rules<br/>by Date & Selectors]
-    J --> K[Apply Rule Effects<br/>Required/Skip/Route]
-    K --> L[Decision:<br/>Approval Route]
-    L --> M[Display Results<br/>+ Rule Explanations]
-    M --> N[Audit Log<br/>data/audit.jsonl]
+    subgraph OCR["1. OCR PROCESSING"]
+        A1[Upload Receipt<br/>PDF/Image/Text]
+        A2[Tesseract.js<br/>Extract Text]
+        A1 --> A2
+    end
+
+    subgraph LLM["2. LLM EXTRACTION"]
+        B1[OpenAI API<br/>Structured Extraction]
+        B2[Zod Schema<br/>Validation]
+        B3[Confidence Scores<br/>Per Field]
+        B1 --> B2 --> B3
+    end
+
+    subgraph FORM["3. REIMBURSEMENT FORM"]
+        C1[Display Extracted<br/>Fields]
+        C2[Visual Indicators<br/>Low Confidence]
+        C3[User Review<br/>& Edits]
+        C4[User Confirms]
+        C1 --> C2 --> C3 --> C4
+    end
+
+    subgraph DECISION["4. DECISION ENGINE"]
+        D1[Filter Active Rules<br/>Date & Selectors]
+        D2[Apply Rule Effects<br/>Required/Skip/Route]
+        D3[Approval Chain<br/>+ Explanations]
+        D4[Audit Log<br/>audit.jsonl]
+        D1 --> D2 --> D3 --> D4
+    end
+
+    OCR ==> LLM ==> FORM ==> DECISION
 ```
 
 The flow demonstrates the key principle: **LLMs extract and suggest; deterministic rules decide.**
