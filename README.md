@@ -131,7 +131,7 @@ The flow demonstrates the key principle: **LLMs extract and suggest; determinist
 - **`POST /api/policy-eval`** - Accepts `{policies, modelOverride?}`, returns analysis with warnings, conflicts, gaps, and optional illustrative suggested tests (no deterministic test execution)
 
 ### LLM Usage Philosophy
-The system uses LLMs for extraction and developer assistance only — never for business decisions:
+The system uses LLMs for extraction and rule development assistance only — never for business decisions:
 - Extraction: Convert unstructured receipts into structured data (via `extraction.schema.ts`).
 - Policy QA for curently active rule: High‑reasoning analysis that flags conflicts, overlaps, and gaps; may include suggested example inputs for future QA. It does not execute tests.
 
